@@ -58,6 +58,16 @@ The API shouldn't know about the specifics of any of these requirements - it sho
 
 - Minimalist, generic API that pushes as much as possible into user-land.
 
+- Arbitrarily grouping rectangles to ensure that they are placed in the same bin(s).
+
+- Supports three dimensions rectangles through a width + height + depth based API.
+
+- Supports through dimensions rectangles (depth = 1)
+
+- User provided heuristics to grant full control over the packing approach.
+
+## Packing Algorithm
+
 ## See Also
 
 - [rectpack2D](https://github.com/TeamHypersomnia/rectpack2D)
