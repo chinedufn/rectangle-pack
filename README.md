@@ -68,7 +68,20 @@ The API shouldn't know about the specifics of any of these requirements - it sho
 
 ## Packing Algorithm
 
+## To Test
+
+```sh
+# Clone the repository
+git clone git@github.com:chinedufn/rectangle-pack.git
+cd rectangle-pack
+
+# Run tests
+cargo test
+```
+
 ## See Also
 
-- [rectpack2D](https://github.com/TeamHypersomnia/rectpack2D)
+- [rectpack2D]
     - Inspired parts of our initial implementation
+
+[rectpack2D]: https://github.com/TeamHypersomnia/rectpack2D

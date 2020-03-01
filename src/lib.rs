@@ -1,6 +1,7 @@
 #![deny(missing_docs)]
 
 use crate::bin_split::BinSection;
+use crate::layered_rect_groups::LayeredRectGroups;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -9,16 +10,16 @@ use std::iter::Once;
 use std::ops::Range;
 
 mod bin_split;
+mod layered_rect_groups;
 
 fn pack_rects<
     InboundId: Debug + Hash + PartialEq + Eq,
-    Inbound: Into<LayeredRect>,
     BinId: Debug + Hash + PartialEq + Eq,
-    GroupId: Debug + Hash + PartialEq,
+    GroupId: Debug + Hash + PartialEq + Eq,
 >(
-    incoming_groups: &LayeredRectGroups<InboundId, GroupId, Inbound>,
+    incoming_groups: &LayeredRectGroups<InboundId, GroupId>,
     mut target_bins: HashMap<BinId, TargetBin>,
-    heuristic: &dyn Fn(u32, u32, u32) -> u128,
+    heuristic: &dyn Fn(&LayeredRect) -> u128,
 ) -> Result<RectanglePackOk<InboundId, BinId>, RectanglePackError<InboundId, GroupId>> {
     let mut packed_locations = HashMap::new();
     let mut bin_stats = HashMap::new();
@@ -43,8 +44,8 @@ fn pack_rects<
     })
 }
 
-fn volume_heuristic(width: u32, height: u32, layers: u32) -> u128 {
-    (width * height * layers) as _
+fn volume_heuristic(rect: &LayeredRect) -> u128 {
+    (rect.width * rect.height * rect.layers) as _
 }
 
 #[derive(Debug, PartialEq)]
@@ -73,12 +74,13 @@ struct PackedLocation<BinId: PartialEq> {
     is_rotated: bool,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 struct LayeredRect {
     width: u32,
     height: u32,
     layers: u32,
     allow_rotation: bool,
+    allow_duplication: bool,
 }
 
 impl IntoIterator for LayeredRect {
@@ -94,18 +96,17 @@ impl LayeredRect {
     /// # Panics
     ///
     /// - Panics if the layer count is 0 since that would mean we'd be attempting to place nothing.
-    ///
-    /// - Panics if allow_rotation is true. This is not yet supported.
-    pub fn new(width: u32, height: u32, layers: u32, allow_rotation: bool) -> Self {
+    pub fn new(width: u32, height: u32, layers: u32) -> Self {
         assert!(layers > 0);
-
-        assert!(!allow_rotation);
 
         LayeredRect {
             width,
             height,
             layers,
-            allow_rotation,
+            // Changing is not yet supported
+            allow_rotation: false,
+            // Changing is not yet supported
+            allow_duplication: true,
         }
     }
 }
@@ -123,8 +124,18 @@ impl LayeredRect {
         self.layers
     }
 
+    /// When true, if a rectangle cannot fit in an available bin section we'll rotate it by 90
+    /// degrees and attempt to place it again.
     fn allow_rotation(&self) -> bool {
         self.allow_rotation
+    }
+
+    /// If a rectangle is in multiple groups and these groups need to be placed in different bins -
+    /// the rectangle would need to be duplicated across these bins.
+    ///
+    /// `allow_duplication` controls whether or not we allow this to occur.
+    fn allow_duplication(&self) -> bool {
+        self.allow_duplication
     }
 }
 
@@ -183,43 +194,6 @@ impl TargetBin {
     }
 }
 
-#[derive(Debug)]
-struct LayeredRectGroups<InboundId: Hash, GroupId: Hash, Inbound> {
-    inbound_id_to_group_ids: HashMap<InboundId, Vec<GroupId>>,
-    group_id_to_inbound_ids: HashMap<GroupId, Vec<InboundId>>,
-    inbound: HashMap<InboundId, Inbound>,
-}
-
-impl<InboundId: Hash + Clone + Eq, GroupdId: Hash + Clone + Eq, Inbound>
-    LayeredRectGroups<InboundId, GroupdId, Inbound>
-{
-    pub fn new() -> Self {
-        Self {
-            inbound_id_to_group_ids: Default::default(),
-            group_id_to_inbound_ids: Default::default(),
-            inbound: Default::default(),
-        }
-    }
-
-    pub fn push_rect(&mut self, inbound_id: InboundId, group_ids: Vec<GroupdId>, inbound: Inbound) {
-        self.inbound_id_to_group_ids
-            .insert(inbound_id.clone(), group_ids.clone());
-
-        self.inbound.insert(inbound_id.clone(), inbound);
-
-        for group_id in group_ids {
-            match self.group_id_to_inbound_ids.entry(group_id) {
-                Entry::Occupied(mut o) => {
-                    o.get_mut().push(inbound_id.clone());
-                }
-                Entry::Vacant(v) => {
-                    v.insert(vec![inbound_id.clone()]);
-                }
-            };
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,8 +207,8 @@ mod tests {
         let mut targets = HashMap::new();
         targets.insert(BinId::Three, TargetBin::new(2, 100, 1));
 
-        let mut groups: LayeredRectGroups<_, (), _> = LayeredRectGroups::new();
-        groups.push_rect(InboundId::One, vec![], LayeredRect::new(3, 1, 1, false));
+        let mut groups: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
+        groups.push_rect(InboundId::One, None, LayeredRect::new(3, 1, 1));
 
         match pack_rects(&groups, targets, &volume_heuristic)
             .err()
@@ -256,13 +230,13 @@ mod tests {
         let mut groups = LayeredRectGroups::new();
         groups.push_rect(
             InboundId::One,
-            vec![GroupId::Five],
-            LayeredRect::new(10, 10, 1, false),
+            Some(vec![GroupId::Five]),
+            LayeredRect::new(10, 10, 1),
         );
         groups.push_rect(
             InboundId::Two,
-            vec![GroupId::Five],
-            LayeredRect::new(10, 10, 1, false),
+            Some(vec![GroupId::Five]),
+            LayeredRect::new(10, 10, 1),
         );
 
         let mut targets = HashMap::new();
@@ -284,8 +258,8 @@ mod tests {
     /// bin.
     #[test]
     fn one_inbound_rect_one_bin() {
-        let mut groups: LayeredRectGroups<_, (), _> = LayeredRectGroups::new();
-        groups.push_rect(InboundId::One, vec![], LayeredRect::new(1, 2, 1, false));
+        let mut groups: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
+        groups.push_rect(InboundId::One, None, LayeredRect::new(1, 2, 1));
 
         let mut targets = HashMap::new();
         targets.insert(BinId::Three, TargetBin::new(5, 5, 1));
@@ -309,8 +283,8 @@ mod tests {
     /// If we have one inbound rect and two bins, it should be placed into the smallest bin.
     #[test]
     fn one_inbound_rect_two_bins() {
-        let mut groups: LayeredRectGroups<_, (), _> = LayeredRectGroups::new();
-        groups.push_rect(InboundId::One, vec![], LayeredRect::new(2, 2, 1, false));
+        let mut groups: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
+        groups.push_rect(InboundId::One, None, LayeredRect::new(2, 2, 1));
 
         let mut targets = HashMap::new();
         targets.insert(BinId::Three, TargetBin::new(5, 5, 1));
@@ -335,9 +309,9 @@ mod tests {
     /// If we have two inbound rects and one bin they should both be placed in that bin.
     #[test]
     fn two_inbound_rects_one_bin() {
-        let mut groups: LayeredRectGroups<_, (), _> = LayeredRectGroups::new();
-        groups.push_rect(InboundId::One, vec![], LayeredRect::new(10, 10, 1, false));
-        groups.push_rect(InboundId::Two, vec![], LayeredRect::new(10, 10, 1, false));
+        let mut groups: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
+        groups.push_rect(InboundId::One, None, LayeredRect::new(10, 10, 1));
+        groups.push_rect(InboundId::Two, None, LayeredRect::new(10, 10, 1));
 
         let mut targets = HashMap::new();
         targets.insert(BinId::Three, TargetBin::new(20, 20, 2));
@@ -375,9 +349,9 @@ mod tests {
     /// 2. Second place largest rectangle into the next available bin (i.e. the largest one).
     #[test]
     fn two_rects_two_bins() {
-        let mut groups: LayeredRectGroups<_, (), _> = LayeredRectGroups::new();
-        groups.push_rect(InboundId::One, vec![], LayeredRect::new(15, 15, 1, false));
-        groups.push_rect(InboundId::Two, vec![], LayeredRect::new(20, 20, 1, false));
+        let mut groups: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
+        groups.push_rect(InboundId::One, None, LayeredRect::new(15, 15, 1));
+        groups.push_rect(InboundId::Two, None, LayeredRect::new(20, 20, 1));
 
         let mut targets = HashMap::new();
         targets.insert(BinId::Three, TargetBin::new(20, 20, 1));
@@ -416,11 +390,7 @@ mod tests {
         let group_ids = vec![GroupId::Five, GroupId::Six];
 
         let mut groups = LayeredRectGroups::new();
-        groups.push_rect(
-            InboundId::One,
-            group_ids,
-            LayeredRect::new(15, 15, 1, false),
-        );
+        groups.push_rect(InboundId::One, Some(group_ids), LayeredRect::new(15, 15, 1));
 
         let mut targets = HashMap::new();
         targets.insert(BinId::Four, TargetBin::new(50, 50, 1));
@@ -448,13 +418,13 @@ mod tests {
         let mut groups = LayeredRectGroups::new();
         groups.push_rect(
             InboundId::One,
-            vec![GroupId::Five, GroupId::Six],
-            LayeredRect::new(15, 15, 1, false),
+            Some(vec![GroupId::Five, GroupId::Six]),
+            LayeredRect::new(15, 15, 1),
         );
         groups.push_rect(
             InboundId::Two,
-            vec![GroupId::Six],
-            LayeredRect::new(20, 20, 1, false),
+            Some(vec![GroupId::Six]),
+            LayeredRect::new(20, 20, 1),
         );
 
         let mut targets = HashMap::new();
@@ -485,6 +455,20 @@ mod tests {
                 is_rotated: false
             }
         );
+    }
+
+    /// If the total heuristic size of a group is larger than that of an individual, the group
+    /// should be placed first.
+    #[test]
+    fn group_placed_before_individual_if_group_larger() {
+        unimplemented!()
+    }
+
+    /// If the total heuristic size of an individual is larger than that of an individual, the group
+    /// should be placed first.
+    #[test]
+    fn individual_placed_before_group_if_individual_larger() {
+        unimplemented!()
     }
 
     #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]

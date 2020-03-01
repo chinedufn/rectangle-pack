@@ -92,7 +92,7 @@ mod tests {
     #[test]
     fn error_if_placement_is_wider_than_bin_section() {
         let bin_section = bin_section_width_height(5, 20);
-        let placement = LayeredRect::new(6, 20, 1, false);
+        let placement = LayeredRect::new(6, 20, 1);
 
         assert_eq!(
             bin_section.try_place(&placement).unwrap_err(),
@@ -104,7 +104,7 @@ mod tests {
     #[test]
     fn error_if_placement_is_taller_than_bin_section() {
         let bin_section = bin_section_width_height(5, 20);
-        let placement = LayeredRect::new(5, 21, 1, false);
+        let placement = LayeredRect::new(5, 21, 1);
 
         assert_eq!(
             bin_section.try_place(&placement).unwrap_err(),
@@ -117,7 +117,7 @@ mod tests {
     #[test]
     fn error_if_placement_has_more_players_than_bin_section() {
         let bin_section = bin_section_width_height(5, 20);
-        let placement = LayeredRect::new(5, 20, 2, false);
+        let placement = LayeredRect::new(5, 20, 2);
 
         assert_eq!(
             bin_section.try_place(&placement).unwrap_err(),
@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn placement_same_size_as_section_does_not_produce_new_section() {
         let bin_section = bin_section_width_height(5, 20);
-        let placement = LayeredRect::new(5, 20, 1, false);
+        let placement = LayeredRect::new(5, 20, 1);
 
         assert_eq!(
             bin_section.try_place(&placement).unwrap(),
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn placement_same_width_as_section_produces_one_new_section() {
         let bin_section = bin_section_width_height(5, 20);
-        let placement = LayeredRect::new(5, 8, 1, false);
+        let placement = LayeredRect::new(5, 8, 1);
 
         assert_eq!(
             bin_section.try_place(&placement).unwrap(),
@@ -156,7 +156,7 @@ mod tests {
     #[test]
     fn placement_same_height_as_section_produces_one_new_section() {
         let bin_section = bin_section_width_height(5, 20);
-        let placement = LayeredRect::new(2, 20, 1, false);
+        let placement = LayeredRect::new(2, 20, 1);
 
         assert_eq!(
             bin_section.try_place(&placement).unwrap(),
@@ -169,7 +169,7 @@ mod tests {
     #[test]
     fn smaller_width_and_height_placement_produces_two_sections() {
         let bin_section = bin_section_width_height(5, 20);
-        let placement = LayeredRect::new(2, 9, 1, false);
+        let placement = LayeredRect::new(2, 9, 1);
 
         assert_eq!(
             bin_section.try_place(&placement).unwrap(),
@@ -185,7 +185,7 @@ mod tests {
     #[test]
     fn fewer_layers_produces_one_new_section() {
         let bin_section = bin_section_width_height_layer_count(5, 20, 5);
-        let placement = LayeredRect::new(5, 20, 3, false);
+        let placement = LayeredRect::new(5, 20, 3);
 
         assert_eq!(
             bin_section.try_place(&placement).unwrap(),
@@ -198,7 +198,7 @@ mod tests {
     #[test]
     fn smaller_layers_smaller_width_produces_two_new_sections() {
         let bin_section = bin_section_width_height_layer_count(5, 20, 5);
-        let placement = LayeredRect::new(4, 20, 3, false);
+        let placement = LayeredRect::new(4, 20, 3);
 
         assert_eq!(
             bin_section.try_place(&placement).unwrap(),
@@ -214,7 +214,7 @@ mod tests {
     #[test]
     fn smaller_layers_smaller_height_produces_two_new_sections() {
         let bin_section = bin_section_width_height_layer_count(5, 20, 5);
-        let placement = LayeredRect::new(5, 9, 3, false);
+        let placement = LayeredRect::new(5, 9, 3);
 
         assert_eq!(
             bin_section.try_place(&placement).unwrap(),
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn smaller_layers_smaller_width_smaller_height_produces_three_new_sections() {
         let bin_section = bin_section_width_height_layer_count(5, 20, 5);
-        let placement = LayeredRect::new(4, 9, 3, false);
+        let placement = LayeredRect::new(4, 9, 3);
 
         assert_eq!(
             bin_section.try_place(&placement).unwrap(),
@@ -240,6 +240,19 @@ mod tests {
                 BinSection::new(0, 0, 5, 20, 3, 2),
             ])
         );
+    }
+
+    #[test]
+    fn todo() {
+        unimplemented!(
+            r#"
+        Add test verifying that we split in order to create the smallest possible and largest possible
+        slit. There are two directions that you can choose to split so we want to choose the right one.
+        
+        Add one test for if the box split should be vertical and one test where the split should
+        be horizontal. Add monodraw diagrams to both tests to visualize.
+        "#
+        )
     }
 
     fn bin_section_width_height(width: u32, height: u32) -> BinSection {
