@@ -12,16 +12,23 @@ use std::hash::Hash;
 /// A group's heuristic is computed by calculating the heuristic of all of the rectangles inside
 /// the group and then summing them.
 #[derive(Debug)]
-pub struct LayeredRectGroups<InboundId: Hash, GroupId: Debug + Hash + Eq> {
-    inbound_id_to_group_ids: HashMap<InboundId, Vec<Group<GroupId>>>,
-    group_id_to_inbound_ids: HashMap<Group<GroupId>, Vec<InboundId>>,
+pub struct LayeredRectGroups<InboundId, GroupId = ()>
+where
+    InboundId: Debug + Hash + Eq,
+    GroupId: Debug + Hash + Eq,
+{
+    inbound_id_to_group_ids: HashMap<InboundId, Vec<Group<GroupId, InboundId>>>,
+    group_id_to_inbound_ids: HashMap<Group<GroupId, InboundId>, Vec<InboundId>>,
     rects: HashMap<InboundId, LayeredRect>,
-    auto_group_idx: u32,
 }
 
 /// A group of rectangles that need to be placed together
 #[derive(Debug, Hash, Eq, PartialEq)]
-enum Group<GroupId: Debug + Hash + Eq + PartialEq> {
+pub enum Group<GroupId, InboundId>
+where
+    GroupId: Debug + Hash + Eq + PartialEq,
+    InboundId: Debug,
+{
     /// An automatically generated (auto incrementing) group identifier for rectangles that were
     /// passed in without any associated group ids.
     ///
@@ -29,13 +36,15 @@ enum Group<GroupId: Debug + Hash + Eq + PartialEq> {
     /// easily compare their heuristics against those of other groups.
     ///
     /// If everything is a "group" - comparing groups becomes simpler.
-    Ungrouped(u32),
+    Ungrouped(InboundId),
     /// Wraps a user provided group identifier.
     Grouped(GroupId),
 }
 
-impl<InboundId: Hash + Clone + Eq, GroupdId: Debug + Hash + Clone + Eq>
-    LayeredRectGroups<InboundId, GroupdId>
+impl<InboundId, GroupId> LayeredRectGroups<InboundId, GroupId>
+where
+    InboundId: Debug + Hash + Clone + Eq,
+    GroupId: Debug + Hash + Clone + Eq,
 {
     /// Create a new `LayeredRectGroups`
     pub fn new() -> Self {
@@ -43,7 +52,6 @@ impl<InboundId: Hash + Clone + Eq, GroupdId: Debug + Hash + Clone + Eq>
             inbound_id_to_group_ids: Default::default(),
             group_id_to_inbound_ids: Default::default(),
             rects: Default::default(),
-            auto_group_idx: 0,
         }
     }
 
@@ -56,7 +64,7 @@ impl<InboundId: Hash + Clone + Eq, GroupdId: Debug + Hash + Clone + Eq>
     pub fn push_rect(
         &mut self,
         inbound_id: InboundId,
-        group_ids: Option<Vec<GroupdId>>,
+        group_ids: Option<Vec<GroupId>>,
         inbound: LayeredRect,
     ) {
         self.rects.insert(inbound_id.clone(), inbound);
@@ -64,14 +72,12 @@ impl<InboundId: Hash + Clone + Eq, GroupdId: Debug + Hash + Clone + Eq>
         match group_ids {
             None => {
                 self.group_id_to_inbound_ids.insert(
-                    Group::Ungrouped(self.auto_group_idx),
+                    Group::Ungrouped(inbound_id.clone()),
                     vec![inbound_id.clone()],
                 );
 
                 self.inbound_id_to_group_ids
-                    .insert(inbound_id, vec![Group::Ungrouped(self.auto_group_idx)]);
-
-                self.auto_group_idx += 1;
+                    .insert(inbound_id.clone(), vec![Group::Ungrouped(inbound_id)]);
             }
             Some(group_ids) => {
                 self.inbound_id_to_group_ids.insert(
@@ -103,38 +109,17 @@ mod tests {
     use super::*;
     use crate::LayeredRect;
 
-    /// Verify that if we insert a rectangle that doesn't have a group it is given an automatic
-    /// group ID.
+    /// Verify that if we insert a rectangle that doesn't have a group it is given a group ID based
+    /// on its inboundID.
     #[test]
-    fn the_first_ungrouped_rectangle_is_assigned_an_automatic_id_of_zero() {
+    fn ungrouped_rectangles_use_their_inbound_id_as_their_group_id() {
         let mut lrg: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
 
         lrg.push_rect(InboundId::One, None, LayeredRect::new(10, 10, 1));
 
-        assert_eq!(lrg.auto_group_idx, 1);
         assert_eq!(
-            lrg.group_id_to_inbound_ids[&Group::Ungrouped(0)],
+            lrg.group_id_to_inbound_ids[&Group::Ungrouped(InboundId::One)],
             vec![InboundId::One]
-        );
-    }
-
-    /// Verify that if we insert two rectangles, neither of which are in groups, that are both
-    /// given unique auto-generated group IDs.
-    #[test]
-    fn automatic_ids_auto_increment() {
-        let mut lrg: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
-
-        lrg.push_rect(InboundId::One, None, LayeredRect::new(10, 10, 1));
-        lrg.push_rect(InboundId::Two, None, LayeredRect::new(10, 10, 1));
-
-        assert_eq!(lrg.auto_group_idx, 2);
-        assert_eq!(
-            lrg.group_id_to_inbound_ids[&Group::Ungrouped(0)],
-            vec![InboundId::One]
-        );
-        assert_eq!(
-            lrg.group_id_to_inbound_ids[&Group::Ungrouped(1)],
-            vec![InboundId::Two]
         );
     }
 
@@ -173,7 +158,7 @@ mod tests {
 
         assert_eq!(
             lrg.inbound_id_to_group_ids[&InboundId::Two],
-            vec![Group::Ungrouped(0)]
+            vec![Group::Ungrouped(InboundId::Two)]
         );
     }
 

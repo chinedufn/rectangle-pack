@@ -1,14 +1,23 @@
 # rectangle-pack [![Actions Status](https://github.com/chinedufn/rectangle-pack/workflows/test/badge.svg)](https://github.com/chinedufn/rectangle-pack/actions) [![docs](https://docs.rs/rectangle-pack/badge.svg)](https://docs.rs/rectangle-pack)
 
-> A minimal, zero dependency rectangle packer capable of handling simple and complex use cases alike. Supports both two and three dimensions.
+> A minimal rectangle packer designed to conform to any use case. Supports both two and three dimensions.
 
 `rectangle-pack` is a library focused on laying out any number of smaller rectangles (both 2d rectangles and 3d rectangular prisms) inside any number of larger rectangles.
 
 `rectangle-pack` exposes an API that gives the consumer control over how rectangles are packed - allowing them to tailor
 the packing to their specific use case.
 
-While `rectangle-pack` was originally designed with texture atlas related use cases in mind - the library itself has no notions of images and can be used
-in any rectangle packing context.
+While `rectangle-pack` was originally designed with texture atlas related use cases in mind - **the library itself has no notions of images and can be used
+in any rectangle packing context**.
+
+## Quickstart
+
+```
+# In your Cargo.toml
+rectangle-pack = "0.1"
+```
+
+[API Documentation](https://docs.rs/rectangle-pack)
 
 ## Background / Initial Motivation
 
@@ -60,17 +69,49 @@ The API shouldn't know about the specifics of any of these requirements - it sho
 
 - Arbitrarily grouping rectangles to ensure that they are placed in the same bin(s).
 
-- Supports three dimensions rectangles through a width + height + depth based API.
+- Supports three dimensional rectangles through a width + height + depth (layers) based API.
 
-- Supports through dimensions rectangles (depth = 1)
+- Supports two dimensional rectangles (depth = 1)
 
-- User provided heuristics to grant full control over the packing approach.
+- User provided heuristics to grant full control over the packing algorithm.
+
+## Example Usage
+
+```rust
+
+```
+
+## Future Work
+
+The first version of `rectangle-pack` was designed to meet my own needs.
+
+As such there is functionality that could be useful that was not explored since I did not need it.
+
+An example of this is the ability to ensure that certain rectqngle groups are not placed in the same bins.
+
+Perhaps you have two plates (bins) and two groups of cheese (rectangles), one for Alice and one for Bob.
+
+When packing you want to ensure that these groups of cheese each end up in a different bin since Alice and Bob don't like to share.
+
+This is currently unsupported by `rectangle-pack` but could be trivially added should the need arise.
+
+---
+
+If you have a use case that isn't supported, go right ahead and open an issue or submit a pull request.
 
 ## Packing Algorithm
 
-- If necessary a texture will be duplicated in order to 
+As it stands now the core algorithm used is essentially a three-dimensional version of [rectpack2D] - just with more things pushed into user-land in order to
+support our goal of flexibly supporting all use cases.
+  - For example: the heuristic is provided by the caller instead of having `rectangle-pack` decide on the heuristic.
+
+## Contributing
+
+If you have a use case that isn't supported, a question, a patch, or anything else, go right ahead and open an issue or submit a pull request.
 
 ## To Test
+
+To run the test suite.
 
 ```sh
 # Clone the repository

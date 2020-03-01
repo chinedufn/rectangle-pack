@@ -1,7 +1,7 @@
 #![deny(missing_docs)]
 
-use crate::bin_split::BinSection;
-use crate::layered_rect_groups::LayeredRectGroups;
+use crate::bin_section::BinSection;
+use crate::layered_rect_groups::{Group, LayeredRectGroups};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -9,7 +9,7 @@ use std::hash::Hash;
 use std::iter::Once;
 use std::ops::Range;
 
-mod bin_split;
+mod bin_section;
 mod layered_rect_groups;
 
 fn pack_rects<
@@ -140,10 +140,10 @@ impl LayeredRect {
 }
 
 #[derive(Debug, thiserror::Error, PartialEq)]
-enum RectanglePackError<InboundId: Debug + PartialEq, GroupId: Debug> {
+pub enum RectanglePackError<InboundId: Debug + PartialEq, GroupId: Debug + Hash + Eq> {
     /// The rectangles can't be placed into the bins. More bin space needs to be provided.
     #[error(
-        r#"The rectangles cannot fit into the bins.
+        r#"Not enough space remaining to place {failed_at_group_id:?}.
 Placed invidiuals: {placed_individuals:?}
 Unplaced invidiuals: {unplaced_individuals:?}
 Placed groups: {placed_groups:?}
@@ -151,6 +151,7 @@ Unplaced groups: {unplaced_groups:?}
 "#
     )]
     NotEnoughBinSpace {
+        failed_at_group_id: Group<GroupId, InboundId>,
         placed_individuals: Vec<InboundId>,
         unplaced_individuals: Vec<InboundId>,
         placed_groups: Vec<GroupId>,
@@ -457,18 +458,56 @@ mod tests {
         );
     }
 
-    /// If the total heuristic size of a group is larger than that of an individual, the group
-    /// should be placed first.
+    /// If there are two sections available to fill - the smaller one should be filled first
+    /// (if possible).
+    ///
+    /// We test this by creating two incoming rectangles. One created two sections - then the
+    /// second should get placed into the smaller of the two sections.
+    ///
+    /// ```text
+    /// ┌──────────────┬──▲───────────────┐
+    /// │ Second Rect  │  │               │
+    /// ├──────────────┴──┤               │
+    /// │                 │               │
+    /// │  First Placed   │               │
+    /// │    Rectangle    │               │
+    /// │                 │               │
+    /// └─────────────────┴───────────────┘
+    /// ```
     #[test]
-    fn group_placed_before_individual_if_group_larger() {
-        unimplemented!()
-    }
+    fn fills_small_sections_before_large_ones() {
+        let mut targets = HashMap::new();
+        targets.insert(BinId::Three, TargetBin::new(100, 100, 1));
 
-    /// If the total heuristic size of an individual is larger than that of an individual, the group
-    /// should be placed first.
-    #[test]
-    fn individual_placed_before_group_if_individual_larger() {
-        unimplemented!()
+        let mut groups: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
+
+        groups.push_rect(InboundId::One, None, LayeredRect::new(50, 90, 1));
+        groups.push_rect(InboundId::Two, None, LayeredRect::new(1, 1, 1));
+
+        let packed = pack_rects(&groups, targets, &volume_heuristic).unwrap();
+        let locations = packed.packed_locations;
+
+        assert_eq!(locations.len(), 2);
+        assert_eq!(
+            locations[&InboundId::One],
+            PackedLocation {
+                bin_id: BinId::Four,
+                left_top: [0, 89],
+                right_bottom: [49, 0],
+                layers: 0..1,
+                is_rotated: false
+            }
+        );
+        assert_eq!(
+            locations[&InboundId::Two],
+            PackedLocation {
+                bin_id: BinId::Three,
+                left_top: [0, 90],
+                right_bottom: [0, 90],
+                layers: 0..1,
+                is_rotated: false
+            }
+        );
     }
 
     #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
