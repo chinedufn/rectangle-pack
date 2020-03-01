@@ -12,6 +12,21 @@ use std::ops::Range;
 mod bin_section;
 mod layered_rect_groups;
 
+#[derive(Debug)]
+#[allow(missing_docs)]
+pub struct WidthHeightDepth {
+    pub width: u32,
+    pub height: u32,
+    pub depth: u32,
+}
+
+/// Incoming boxes are places into the smallest hole that will fit them.
+///
+/// "small" vs. "large" is based on the heuristic function.
+///
+/// A larger heuristic means that the box is larger.
+pub type HeuristicFn = dyn Fn(WidthHeightDepth) -> u128;
+
 fn pack_rects<
     InboundId: Debug + Hash + PartialEq + Eq,
     BinId: Debug + Hash + PartialEq + Eq,
@@ -19,7 +34,7 @@ fn pack_rects<
 >(
     incoming_groups: &LayeredRectGroups<InboundId, GroupId>,
     mut target_bins: HashMap<BinId, TargetBin>,
-    heuristic: &dyn Fn(&LayeredRect) -> u128,
+    box_size_heuristic: &HeuristicFn,
 ) -> Result<RectanglePackOk<InboundId, BinId>, RectanglePackError<InboundId, GroupId>> {
     let mut packed_locations = HashMap::new();
     let mut bin_stats = HashMap::new();
@@ -44,8 +59,8 @@ fn pack_rects<
     })
 }
 
-fn volume_heuristic(rect: &LayeredRect) -> u128 {
-    (rect.width * rect.height * rect.layers) as _
+fn volume_heuristic(whd: WidthHeightDepth) -> u128 {
+    (whd.width * whd.height * whd.depth) as _
 }
 
 #[derive(Debug, PartialEq)]
@@ -81,6 +96,16 @@ struct LayeredRect {
     layers: u32,
     allow_rotation: bool,
     allow_duplication: bool,
+}
+
+impl Into<WidthHeightDepth> for LayeredRect {
+    fn into(self) -> WidthHeightDepth {
+        WidthHeightDepth {
+            width: self.width(),
+            height: self.height(),
+            depth: self.layers(),
+        }
+    }
 }
 
 impl IntoIterator for LayeredRect {
@@ -139,6 +164,7 @@ impl LayeredRect {
     }
 }
 
+/// An error while attempting to pack rectangles into bins.
 #[derive(Debug, thiserror::Error, PartialEq)]
 pub enum RectanglePackError<InboundId: Debug + PartialEq, GroupId: Debug + Hash + Eq> {
     /// The rectangles can't be placed into the bins. More bin space needs to be provided.

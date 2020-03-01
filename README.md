@@ -1,6 +1,6 @@
 # rectangle-pack [![Actions Status](https://github.com/chinedufn/rectangle-pack/workflows/test/badge.svg)](https://github.com/chinedufn/rectangle-pack/actions) [![docs](https://docs.rs/rectangle-pack/badge.svg)](https://docs.rs/rectangle-pack)
 
-> A minimal rectangle packer designed to conform to any use case. Supports both two and three dimensions.
+> A minimal, zero dependency rectangle packer designed to conform to any use two or three dimensional case.
 
 `rectangle-pack` is a library focused on laying out any number of smaller rectangles (both 2d rectangles and 3d rectangular prisms) inside any number of larger rectangles.
 
@@ -17,7 +17,15 @@ in any rectangle packing context**.
 rectangle-pack = "0.1"
 ```
 
-[API Documentation](https://docs.rs/rectangle-pack)
+```rust
+//! A basic use case
+
+use rectangle_pack;
+
+// Trivial example here
+```
+
+[Full API Documentation](https://docs.rs/rectangle-pack)
 
 ## Background / Initial Motivation
 
@@ -69,7 +77,7 @@ The API shouldn't know about the specifics of any of these requirements - it sho
 
 - Arbitrarily grouping rectangles to ensure that they are placed in the same bin(s).
 
-- Supports three dimensional rectangles through a width + height + depth (layers) based API.
+- Supports three dimensional rectangles through a width + height + depth based API.
 
 - Supports two dimensional rectangles (depth = 1)
 
@@ -87,13 +95,20 @@ The first version of `rectangle-pack` was designed to meet my own needs.
 
 As such there is functionality that could be useful that was not explored since I did not need it.
 
+Here are some things that could be useful in the future.
+
+### Mutually exclusive groups
+
 An example of this is the ability to ensure that certain rectqngle groups are not placed in the same bins.
 
 Perhaps you have two plates (bins) and two groups of cheese (rectangles), one for Alice and one for Bob.
 
 When packing you want to ensure that these groups of cheese each end up in a different bin since Alice and Bob don't like to share.
 
-This is currently unsupported by `rectangle-pack` but could be trivially added should the need arise.
+### Stats on how the bins were packed
+
+Things such as the amount of wasted space - or anything else that would allow the caller to compare the results of different combinations of
+target bin sizes and heuristics to see which packed the most efficiently.
 
 ---
 
@@ -101,9 +116,17 @@ If you have a use case that isn't supported, go right ahead and open an issue or
 
 ## Packing Algorithm
 
-As it stands now the core algorithm used is essentially a three-dimensional version of [rectpack2D] - just with more things pushed into user-land in order to
+We started with the algorithm described in [rectpack2D] and then made some adjustments in order to
 support our goal of flexibly supporting all use cases.
-  - For example: the heuristic is provided by the caller instead of having `rectangle-pack` decide on the heuristic.
+
+
+- The heuristic is provided by the caller instead of having `rectangle-pack` decide on the heuristic.
+
+- When splitting an available section of a bin into two new sections of a bin - we do not decide on how the split should occur arbitrarily.
+  Instead, we base it on the heuristic. Whichever split (vertical or horizontal) produces the largest delta between the heuristic scores of the
+  two new bins will be used.
+
+- There is a third dimension.
 
 ## Contributing
 
