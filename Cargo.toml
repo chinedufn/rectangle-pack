@@ -3,7 +3,7 @@ name = "rectangle-pack"
 version = "0.1.0"
 authors = ["Chinedu Francis Nwafili <frankie.nwafili@gmail.com>"]
 edition = "2018"
-keywords = ["texture", "atlas", "pack", "bin", "rect"]
+keywords = ["texture", "atlas", "bin", "rect", "box", "packer"]
 
 [dependencies]
 thiserror = "1"

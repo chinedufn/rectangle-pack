@@ -1,79 +1,71 @@
-use crate::{HeuristicFn, LayeredRect, WidthHeightDepth};
+use crate::{HeuristicFn, LayeredRect, PackedLocation, RotatedBy, WidthHeightDepth};
+use std::cmp::Ordering;
 use std::hint::unreachable_unchecked;
 
-/// A rectangular section within a target bin that takes up one or more layers
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub struct BinSection {
-    x: u32,
-    y_rel_bottom: u32,
-    width: u32,
-    height: u32,
-    first_layer: u32,
-    layer_count: u32,
+/// Given two sets of containers, which of these is the more suitable for our packing.
+///
+/// Ordering::Greater means the first set of containers is better.
+///
+/// Ordering::Less means the second set of containers is better.
+pub type MoreSuitableContainersFn =
+    dyn Fn([WidthHeightDepth; 3], [WidthHeightDepth; 3], &HeuristicFn) -> Ordering;
+
+/// Select the container that has the smallest box.
+///
+/// If there is a tie on the smallest boxes, select whichever also has the second smallest box.
+pub fn contains_smallest_box(
+    mut container1: [WidthHeightDepth; 3],
+    mut container2: [WidthHeightDepth; 3],
+    heuristic: &HeuristicFn,
+) -> Ordering {
+    container1.sort_unstable();
+    container2.sort_unstable();
+
+    match heuristic(container2[0]).cmp(&heuristic(container1[0])) {
+        Ordering::Equal => heuristic(container2[1]).cmp(&heuristic(container1[1])),
+        o => o,
+    }
 }
 
-impl Into<WidthHeightDepth> for BinSection {
-    fn into(self) -> WidthHeightDepth {
-        WidthHeightDepth {
-            width: self.width,
-            height: self.height,
-            depth: self.layer_count,
-        }
+/// A rectangular section within a target bin that takes up one or more layers
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default, Ord, PartialOrd)]
+pub struct BinSection {
+    x: u32,
+    y: u32,
+    z: u32,
+    whd: WidthHeightDepth,
+}
+
+impl BinSection {
+    fn empty() -> Self {
+        Self::default()
     }
 }
 
 /// An error while attempting to place a rectangle within a bin section;
 #[derive(Debug, thiserror::Error, Eq, PartialEq)]
 pub enum BinSectionError {
-    #[error("Can not place a rectangle inside of a bin that is wider than that rectangle.")]
-    PlacementWiderThanBinSection,
-    #[error("Can not place a rectangle inside of a bin that is taller than that rectangle.")]
-    PlacementTallerThanBinSection,
-    #[error("Can not place a rectangle inside of a bin that has more layers than that rectangle.")]
-    PlacementHasMoreLayersThanBinSection,
-}
-
-/// Bin sections that were created by splitting another bin section
-#[derive(Debug, Eq, PartialEq)]
-pub enum NewEmptyBinSections {
-    /// The placed `LayeredRect` was the same size as the `BinSection`, so no new splits were
-    /// created.
-    None,
-    /// The placed `LayeredRect` was smaller than the `BinSection` along one dimension,
-    /// so one new split were created.
-    One(BinSection),
-    /// The placed `LayeredRect` was smaller than the `BinSection` along two dimensions,
-    /// so one new split were created.
-    Two([BinSection; 2]),
-    /// The placed `LayeredRect` was smaller than the `BinSection` along the width, height and layer
-    /// dimensions, so three news split were created.
-    Three([BinSection; 3]),
+    #[error("Can not place a rectangle inside of a bin that is smaller than that rectangle.")]
+    PlacementLargerThanBinSection,
 }
 
 impl BinSection {
     /// Create a new BinSection
-    ///
-    /// # Panics
-    ///
-    /// Panics if the layer_count == 0 since that would mean we're trying to make a section out of
-    /// nothing.
-    pub fn new(
-        x: u32,
-        y_rel_bottom: u32,
-        width: u32,
-        height: u32,
-        first_layer: u32,
-        layer_count: u32,
-    ) -> Self {
-        assert!(layer_count > 0);
+    pub fn new(x: u32, y: u32, z: u32, whd: WidthHeightDepth) -> Self {
+        BinSection { x, y, z, whd }
+    }
 
+    // TODO: Delete - just the old API
+    fn new_spread(x: u32, y: u32, z: u32, width: u32, height: u32, depth: u32) -> Self {
         BinSection {
             x,
-            y_rel_bottom,
-            width,
-            height,
-            first_layer,
-            layer_count,
+            y,
+            z,
+            whd: WidthHeightDepth {
+                width,
+                height,
+                depth,
+            },
         }
     }
 }
@@ -134,207 +126,264 @@ impl BinSection {
     pub fn try_place(
         &self,
         incoming: &LayeredRect,
-        heuristic: &HeuristicFn,
-    ) -> Result<NewEmptyBinSections, BinSectionError> {
+        container_comparison_fn: &MoreSuitableContainersFn,
+        heuristic_fn: &HeuristicFn,
+    ) -> Result<(PackedLocation, [BinSection; 3]), BinSectionError> {
         self.incoming_can_fit(incoming)?;
 
-        if self.same_size(incoming) {
-            return Ok(NewEmptyBinSections::None);
-        }
+        let mut all_combinations = [
+            self.depth_largest_height_second_largest_width_smallest(incoming),
+            self.depth_largest_width_second_largest_height_smallest(incoming),
+            self.height_largest_depth_second_largest_width_smallest(incoming),
+            self.height_largest_width_second_largest_depth_smallest(incoming),
+            self.width_largest_depth_second_largest_height_smallest(incoming),
+            self.width_largest_height_second_largest_depth_smallest(incoming),
+        ];
 
-        if self.same_width_same_layers_different_height(incoming) {
-            let empty_space_above = self.all_empty_space_above(incoming);
-            return Ok(NewEmptyBinSections::One(empty_space_above));
-        }
+        all_combinations.sort_unstable_by(|a, b| {
+            container_comparison_fn(
+                [a[0].whd, a[1].whd, a[2].whd],
+                [b[0].whd, b[1].whd, b[2].whd],
+                heuristic_fn,
+            )
+        });
 
-        if self.same_height_same_layers_different_width(incoming) {
-            let empty_space_right = self.all_empty_space_right(incoming);
-            return Ok(NewEmptyBinSections::One(empty_space_right));
-        }
+        let packed_location = PackedLocation {
+            x: self.x,
+            y: self.y,
+            z: self.z,
+            whd: WidthHeightDepth {
+                width: incoming.width(),
+                height: incoming.height(),
+                depth: incoming.depth(),
+            },
+            x_axis_rotation: RotatedBy::ZeroDegrees,
+            y_axis_rotation: RotatedBy::ZeroDegrees,
+            z_axis_rotation: RotatedBy::ZeroDegrees,
+        };
 
-        if self.same_width_same_height_fewer_layers(incoming) {
-            let all_empty_space_behind = self.all_empty_space_behind(incoming);
-            return Ok(NewEmptyBinSections::One(all_empty_space_behind));
-        }
-
-        if self.different_width_different_height_same_layers(incoming) {
-            let splits = self.choose_largest_delta_xy_split(incoming, heuristic);
-            return Ok(NewEmptyBinSections::Two(splits));
-        }
-
-        if self.same_height_different_width_fewer_layers(incoming) {
-            return Ok(NewEmptyBinSections::Two([
-                self.all_empty_space_right(incoming),
-                self.all_empty_space_behind(incoming),
-            ]));
-        }
-
-        if self.same_width_different_height_fewer_layers(incoming) {
-            return Ok(NewEmptyBinSections::Two([
-                self.all_empty_space_above(incoming),
-                self.all_empty_space_behind(incoming),
-            ]));
-        }
-
-        if self.different_height_different_with_fewer_layers(incoming) {
-            let splits = self.choose_largest_delta_xy_split(incoming, heuristic);
-
-            return Ok(NewEmptyBinSections::Three([
-                splits[0],
-                splits[1],
-                self.all_empty_space_behind(incoming),
-            ]));
-        }
-
-        // Safe because every possible combination of size differences is checked above.
-        unsafe { unreachable_unchecked() }
+        Ok((packed_location, all_combinations[5]))
     }
 
     fn incoming_can_fit(&self, incoming: &LayeredRect) -> Result<(), BinSectionError> {
-        if incoming.width() > self.width {
-            return Err(BinSectionError::PlacementWiderThanBinSection);
-        }
-
-        if incoming.height() > self.height {
-            return Err(BinSectionError::PlacementTallerThanBinSection);
-        }
-
-        if incoming.layers() > self.layer_count {
-            return Err(BinSectionError::PlacementHasMoreLayersThanBinSection);
+        if incoming.width() * incoming.height() * incoming.depth()
+            > self.whd.width * self.whd.height * self.whd.depth
+        {
+            return Err(BinSectionError::PlacementLargerThanBinSection);
         }
 
         Ok(())
     }
 
-    fn same_size(&self, incoming: &LayeredRect) -> bool {
-        incoming.width() == self.width
-            && incoming.height() == self.height
-            && incoming.layers() == self.layer_count
-    }
-
-    fn choose_largest_delta_xy_split(
+    fn width_largest_height_second_largest_depth_smallest(
         &self,
         incoming: &LayeredRect,
-        heuristic: &dyn Fn(WidthHeightDepth) -> u128,
-    ) -> [BinSection; 2] {
-        let split_candidate_1 = [
-            self.all_empty_space_above(incoming),
+    ) -> [BinSection; 3] {
+        [
             self.empty_space_directly_right(incoming),
-        ];
+            self.all_empty_space_above_excluding_behind(incoming),
+            self.all_empty_space_behind(incoming),
+        ]
+    }
 
-        let split_candidate_2 = [
+    fn width_largest_depth_second_largest_height_smallest(
+        &self,
+        incoming: &LayeredRect,
+    ) -> [BinSection; 3] {
+        [
+            self.empty_space_directly_right(incoming),
+            self.all_empty_space_above(incoming),
+            self.all_empty_space_behind_excluding_above(incoming),
+        ]
+    }
+
+    fn height_largest_width_second_largest_depth_smallest(
+        &self,
+        incoming: &LayeredRect,
+    ) -> [BinSection; 3] {
+        [
+            self.all_empty_space_right_excluding_behind(incoming),
+            self.empty_space_directly_above(incoming),
+            self.all_empty_space_behind(incoming),
+        ]
+    }
+
+    fn height_largest_depth_second_largest_width_smallest(
+        &self,
+        incoming: &LayeredRect,
+    ) -> [BinSection; 3] {
+        [
             self.all_empty_space_right(incoming),
             self.empty_space_directly_above(incoming),
-        ];
-
-        let delta1 = heuristic(split_candidate_1[0].into()) as i128
-            - heuristic(split_candidate_1[1].into()) as i128;
-        let delta1 = delta1.abs();
-
-        let delta2 = heuristic(split_candidate_2[0].into()) as i128
-            - heuristic(split_candidate_2[1].into()) as i128;
-        let delta2 = delta2.abs();
-
-        match delta1 > delta2 {
-            true => split_candidate_1,
-            false => split_candidate_2,
-        }
+            self.all_empty_space_behind_excluding_right(incoming),
+        ]
     }
 
-    fn same_width_same_layers_different_height(&self, incoming: &LayeredRect) -> bool {
-        incoming.width() == self.width
-            && incoming.layers() == self.layer_count
-            && incoming.height() != self.height
+    fn depth_largest_width_second_largest_height_smallest(
+        &self,
+        incoming: &LayeredRect,
+    ) -> [BinSection; 3] {
+        [
+            self.all_empty_space_right_excluding_above(incoming),
+            self.all_empty_space_above(incoming),
+            self.empty_space_directly_behind(incoming),
+        ]
     }
 
-    fn same_height_same_layers_different_width(&self, incoming: &LayeredRect) -> bool {
-        incoming.height() == self.height
-            && incoming.layers() == self.layer_count
-            && incoming.width() != self.width
-    }
-
-    fn different_width_different_height_same_layers(&self, incoming: &LayeredRect) -> bool {
-        incoming.width() != self.width
-            && incoming.height() != self.height
-            && incoming.layers() == self.layer_count
-    }
-
-    fn same_width_same_height_fewer_layers(&self, incoming: &LayeredRect) -> bool {
-        incoming.width() == self.width
-            && incoming.height() == self.height
-            && incoming.layers() != self.layer_count
-    }
-
-    fn same_height_different_width_fewer_layers(&self, incoming: &LayeredRect) -> bool {
-        incoming.height() == self.height
-            && incoming.width() != self.width
-            && incoming.layers() != self.layer_count
-    }
-
-    fn same_width_different_height_fewer_layers(&self, incoming: &LayeredRect) -> bool {
-        incoming.width() == self.width
-            && incoming.height() != self.height
-            && incoming.layers() != self.layer_count
-    }
-
-    fn different_height_different_with_fewer_layers(&self, incoming: &LayeredRect) -> bool {
-        incoming.height() != self.height
-            && incoming.width() != self.width
-            && incoming.layers() != self.layer_count
+    fn depth_largest_height_second_largest_width_smallest(
+        &self,
+        incoming: &LayeredRect,
+    ) -> [BinSection; 3] {
+        [
+            self.all_empty_space_right(incoming),
+            self.all_empty_space_above_excluding_right(incoming),
+            self.empty_space_directly_behind(incoming),
+        ]
     }
 
     fn all_empty_space_above(&self, incoming: &LayeredRect) -> BinSection {
-        BinSection::new(
+        BinSection::new_spread(
             self.x,
-            self.y_rel_bottom + incoming.height(),
-            self.width,
-            self.height - incoming.height(),
-            self.first_layer,
-            incoming.layers(),
+            self.y + incoming.height(),
+            self.z,
+            self.whd.width,
+            self.whd.height - incoming.height(),
+            self.whd.depth,
         )
     }
 
     fn all_empty_space_right(&self, incoming: &LayeredRect) -> BinSection {
-        BinSection::new(
+        BinSection::new_spread(
             self.x + incoming.width(),
-            self.y_rel_bottom,
-            self.width - incoming.width(),
-            self.height,
-            self.first_layer,
-            incoming.layers(),
+            self.y,
+            self.z,
+            self.whd.width - incoming.width(),
+            self.whd.height,
+            self.whd.depth,
         )
     }
 
     fn all_empty_space_behind(&self, incoming: &LayeredRect) -> BinSection {
-        BinSection::new(
+        BinSection::new_spread(
             self.x,
-            self.y_rel_bottom,
-            self.width,
-            self.height,
-            self.first_layer + incoming.layers(),
-            self.layer_count - incoming.layers(),
+            self.y,
+            self.z + incoming.depth(),
+            self.whd.width,
+            self.whd.height,
+            self.whd.depth - incoming.depth(),
         )
     }
 
     fn empty_space_directly_above(&self, incoming: &LayeredRect) -> BinSection {
-        BinSection::new(
+        BinSection::new_spread(
             self.x,
-            self.y_rel_bottom + incoming.height(),
+            self.y + incoming.height(),
+            self.z,
             incoming.width(),
-            self.height - incoming.height(),
-            self.first_layer,
-            incoming.layers(),
+            self.whd.height - incoming.height(),
+            incoming.depth(),
         )
     }
 
     fn empty_space_directly_right(&self, incoming: &LayeredRect) -> BinSection {
+        BinSection::new_spread(
+            self.x + incoming.width(),
+            self.y,
+            self.z,
+            self.whd.width - incoming.width(),
+            incoming.height(),
+            incoming.depth(),
+        )
+    }
+
+    fn empty_space_directly_behind(&self, incoming: &LayeredRect) -> BinSection {
+        BinSection::new(
+            self.x,
+            self.y,
+            self.z + incoming.depth(),
+            WidthHeightDepth {
+                width: incoming.width(),
+                height: incoming.height(),
+                depth: self.whd.depth - incoming.depth(),
+            },
+        )
+    }
+
+    fn all_empty_space_above_excluding_right(&self, incoming: &LayeredRect) -> BinSection {
+        BinSection::new(
+            self.x,
+            self.y + incoming.height(),
+            self.z,
+            WidthHeightDepth {
+                width: incoming.width(),
+                height: self.whd.height - incoming.height(),
+                depth: self.whd.depth,
+            },
+        )
+    }
+
+    fn all_empty_space_above_excluding_behind(&self, incoming: &LayeredRect) -> BinSection {
+        BinSection::new(
+            self.x,
+            self.y + incoming.height(),
+            self.z,
+            WidthHeightDepth {
+                width: self.whd.width,
+                height: self.whd.height - incoming.height(),
+                depth: incoming.depth(),
+            },
+        )
+    }
+
+    fn all_empty_space_right_excluding_above(&self, incoming: &LayeredRect) -> BinSection {
         BinSection::new(
             self.x + incoming.width(),
-            self.y_rel_bottom,
-            self.width - incoming.width(),
-            incoming.height(),
-            self.first_layer,
-            incoming.layers(),
+            self.y,
+            self.z,
+            WidthHeightDepth {
+                width: self.whd.width - incoming.width(),
+                height: incoming.height(),
+                depth: self.whd.depth,
+            },
+        )
+    }
+
+    fn all_empty_space_right_excluding_behind(&self, incoming: &LayeredRect) -> BinSection {
+        BinSection::new(
+            self.x + incoming.width(),
+            self.y,
+            self.z,
+            WidthHeightDepth {
+                width: self.whd.width - incoming.width(),
+                height: self.whd.height,
+                depth: incoming.depth(),
+            },
+        )
+    }
+
+    fn all_empty_space_behind_excluding_above(&self, incoming: &LayeredRect) -> BinSection {
+        BinSection::new(
+            self.x,
+            self.y,
+            self.z + incoming.depth(),
+            WidthHeightDepth {
+                width: self.whd.width,
+                height: incoming.height(),
+                depth: self.whd.depth - incoming.depth(),
+            },
+        )
+    }
+
+    fn all_empty_space_behind_excluding_right(&self, incoming: &LayeredRect) -> BinSection {
+        BinSection::new(
+            self.x,
+            self.y,
+            self.z + incoming.depth(),
+            WidthHeightDepth {
+                width: incoming.width(),
+                height: self.whd.height,
+                depth: self.whd.depth - incoming.depth(),
+            },
         )
     }
 }
@@ -343,288 +392,185 @@ impl BinSection {
 mod tests {
     use super::*;
     use crate::{volume_heuristic, LayeredRect};
+    use std::sync::mpsc::TrySendError::Full;
 
-    /// If we're trying to place a rectangle that is wider than the container we return an error
+    const BIGGEST: u32 = 50;
+    const MIDDLE: u32 = 25;
+    const SMALLEST: u32 = 10;
+
+    const FULL: u32 = 100;
+
+    /// If we're trying to place a rectangle that is larger than the container we return an error
     #[test]
-    fn error_if_placement_is_wider_than_bin_section() {
-        let bin_section = bin_section_width_height(5, 20);
+    fn error_if_placement_is_larger_than_bin_section() {
+        let bin_section = bin_section_width_height_depth(5, 20, 1);
         let placement = LayeredRect::new(6, 20, 1);
 
         assert_eq!(
             bin_section
-                .try_place(&placement, &volume_heuristic)
+                .try_place(&placement, &contains_smallest_box, &volume_heuristic)
                 .unwrap_err(),
-            BinSectionError::PlacementWiderThanBinSection
+            BinSectionError::PlacementLargerThanBinSection
         );
     }
 
-    /// If we're trying to place a rectangle that is taller than the container we return an error
-    #[test]
-    fn error_if_placement_is_taller_than_bin_section() {
-        let bin_section = bin_section_width_height(5, 20);
-        let placement = LayeredRect::new(5, 21, 1);
+    fn test_splits(
+        container_dimensions: u32,
+        rect_to_place: WidthHeightDepth,
+        mut expected: [BinSection; 3],
+    ) {
+        let dim = container_dimensions;
+        let bin_section = bin_section_width_height_depth(dim, dim, dim);
 
-        assert_eq!(
-            bin_section
-                .try_place(&placement, &volume_heuristic)
-                .unwrap_err(),
-            BinSectionError::PlacementTallerThanBinSection
+        let whd = rect_to_place;
+
+        let placement = LayeredRect::new(whd.width, whd.height, whd.depth);
+
+        let mut packed = bin_section
+            .try_place(&placement, &contains_smallest_box, &volume_heuristic)
+            .unwrap();
+
+        packed.1.sort();
+        expected.sort();
+
+        assert_eq!(packed.1, expected);
+    }
+
+    /// Verify that we choose the correct splits when the placed rectangle is width > height > depth
+    #[test]
+    fn width_largest_height_second_largest_depth_smallest() {
+        let whd = WidthHeightDepth {
+            width: BIGGEST,
+            height: MIDDLE,
+            depth: SMALLEST,
+        };
+
+        test_splits(
+            FULL,
+            whd,
+            [
+                BinSection::new_spread(whd.width, 0, 0, FULL - whd.width, whd.height, whd.depth),
+                BinSection::new_spread(0, whd.height, 0, FULL, FULL - whd.height, whd.depth),
+                BinSection::new_spread(0, 0, whd.depth, FULL, FULL, FULL - whd.depth),
+            ],
         );
     }
 
-    /// If we're trying to place a rectangle that has more layers than the container we return an
-    /// error
+    /// Verify that we choose the correct splits when the placed rectangle is width > depth > height
     #[test]
-    fn error_if_placement_has_more_layers_than_bin_section() {
-        let bin_section = bin_section_width_height(5, 20);
-        let placement = LayeredRect::new(5, 20, 2);
+    fn width_largest_depth_second_largest_height_smallest() {
+        let whd = WidthHeightDepth {
+            width: BIGGEST,
+            height: SMALLEST,
+            depth: MIDDLE,
+        };
 
-        assert_eq!(
-            bin_section
-                .try_place(&placement, &volume_heuristic)
-                .unwrap_err(),
-            BinSectionError::PlacementHasMoreLayersThanBinSection
+        test_splits(
+            FULL,
+            whd,
+            [
+                BinSection::new_spread(whd.width, 0, 0, FULL - whd.width, whd.height, whd.depth),
+                BinSection::new_spread(0, whd.height, 0, FULL, FULL - whd.height, FULL),
+                BinSection::new_spread(0, 0, whd.depth, FULL, whd.height, FULL - whd.depth),
+            ],
         );
     }
 
-    /// If we place an inbound rectangle on top of a bin section that it the same size, no new bin
-    /// sections are generated
+    /// Verify that we choose the correct splits when the placed rectangle is height > width > depth
     #[test]
-    fn placement_same_size_as_section_does_not_produce_new_section() {
-        let bin_section = bin_section_width_height(5, 20);
-        let placement = LayeredRect::new(5, 20, 1);
+    fn height_largest_width_second_largest_depth_smallest() {
+        let whd = WidthHeightDepth {
+            width: MIDDLE,
+            height: BIGGEST,
+            depth: SMALLEST,
+        };
 
-        assert_eq!(
-            bin_section
-                .try_place(&placement, &volume_heuristic)
-                .unwrap(),
-            NewEmptyBinSections::None
+        test_splits(
+            FULL,
+            whd,
+            [
+                BinSection::new_spread(whd.width, 0, 0, FULL - whd.width, FULL, whd.depth),
+                BinSection::new_spread(0, whd.height, 0, whd.width, FULL - whd.height, whd.depth),
+                BinSection::new_spread(0, 0, whd.depth, FULL, FULL, FULL - whd.depth),
+            ],
         );
     }
 
-    /// If we place an inbound rectangle on top of a bin section that has the same width but a
-    /// different height, only one new section is generated.
+    /// Verify that we choose the correct splits when the placed rectangle is height > depth > width
     #[test]
-    fn placement_same_width_as_section_produces_one_new_section() {
-        let bin_section = bin_section_width_height(5, 20);
-        let placement = LayeredRect::new(5, 8, 1);
+    fn height_largest_depth_second_largest_width_smallest() {
+        let whd = WidthHeightDepth {
+            width: SMALLEST,
+            height: BIGGEST,
+            depth: MIDDLE,
+        };
 
-        assert_eq!(
-            bin_section
-                .try_place(&placement, &volume_heuristic)
-                .unwrap(),
-            NewEmptyBinSections::One(BinSection::new(0, 8, 5, 12, 0, 1))
+        test_splits(
+            FULL,
+            whd,
+            [
+                BinSection::new_spread(whd.width, 0, 0, FULL - whd.width, FULL, FULL),
+                BinSection::new_spread(0, whd.height, 0, whd.width, FULL - whd.height, whd.depth),
+                BinSection::new_spread(0, 0, whd.depth, whd.width, FULL, FULL - whd.depth),
+            ],
         );
     }
 
-    /// If we place an inbound rectangle on top of a bin section that has the same height but a
-    /// different width, only one new section is generated.
+    /// Verify that we choose the correct splits when the placed rectangle is depth > width > height
     #[test]
-    fn placement_same_height_as_section_produces_one_new_section() {
-        let bin_section = bin_section_width_height(5, 20);
-        let placement = LayeredRect::new(2, 20, 1);
+    fn depth_largest_width_second_largest_height_smallest() {
+        let whd = WidthHeightDepth {
+            width: MIDDLE,
+            height: SMALLEST,
+            depth: BIGGEST,
+        };
 
-        assert_eq!(
-            bin_section
-                .try_place(&placement, &volume_heuristic)
-                .unwrap(),
-            NewEmptyBinSections::One(BinSection::new(2, 0, 3, 20, 0, 1))
+        test_splits(
+            FULL,
+            whd,
+            [
+                BinSection::new_spread(whd.width, 0, 0, FULL - whd.width, whd.height, FULL),
+                BinSection::new_spread(0, whd.height, 0, FULL, FULL - whd.height, FULL),
+                BinSection::new_spread(0, 0, whd.depth, whd.width, whd.height, FULL - whd.depth),
+            ],
         );
     }
 
-    /// If we place an inbound rectangle of the same width/height as the target bin section but
-    /// with fewer layers, one new section should be created.
+    /// Verify that we choose the correct splits when the placed rectangle is depth > height > width
     #[test]
-    fn fewer_layers_produces_one_new_section() {
-        let bin_section = bin_section_width_height_layer_count(5, 20, 5);
-        let placement = LayeredRect::new(5, 20, 3);
+    fn depth_largest_height_second_largest_width_smallest() {
+        let whd = WidthHeightDepth {
+            width: SMALLEST,
+            height: MIDDLE,
+            depth: BIGGEST,
+        };
 
-        assert_eq!(
-            bin_section
-                .try_place(&placement, &volume_heuristic)
-                .unwrap(),
-            NewEmptyBinSections::One(BinSection::new(0, 0, 5, 20, 3, 2))
-        );
-    }
-
-    /// If we place an inbound rectangle with less layers and width than the target bin section
-    /// we produce two new empty sections.
-    #[test]
-    fn smaller_layers_smaller_width_produces_two_new_sections() {
-        let bin_section = bin_section_width_height_layer_count(5, 20, 5);
-        let placement = LayeredRect::new(4, 20, 3);
-
-        assert_eq!(
-            bin_section
-                .try_place(&placement, &volume_heuristic)
-                .unwrap(),
-            NewEmptyBinSections::Two([
-                BinSection::new(4, 0, 1, 20, 0, 3),
-                BinSection::new(0, 0, 5, 20, 3, 2),
-            ])
-        );
-    }
-
-    /// If we place an inbound rectangle with less layers and height than the target bin section
-    /// we produce two new empty sections.
-    #[test]
-    fn smaller_layers_smaller_height_produces_two_new_sections() {
-        let bin_section = bin_section_width_height_layer_count(5, 20, 5);
-        let placement = LayeredRect::new(5, 9, 3);
-
-        assert_eq!(
-            bin_section
-                .try_place(&placement, &volume_heuristic)
-                .unwrap(),
-            NewEmptyBinSections::Two([
-                BinSection::new(0, 9, 5, 11, 0, 3),
-                BinSection::new(0, 0, 5, 20, 3, 2),
-            ])
-        );
-    }
-
-    /// If we place an inbound rectangle with less layers, width and height than the target bin
-    /// section we produce three new empty sections.
-    #[test]
-    fn smaller_layers_smaller_width_smaller_height_produces_three_new_sections() {
-        let bin_section = bin_section_width_height_layer_count(5, 20, 5);
-        let placement = LayeredRect::new(4, 9, 3);
-
-        assert_eq!(
-            bin_section
-                .try_place(&placement, &volume_heuristic)
-                .unwrap(),
-            NewEmptyBinSections::Three([
-                BinSection::new(0, 9, 5, 11, 0, 3),
-                BinSection::new(4, 0, 1, 9, 0, 3),
-                BinSection::new(0, 0, 5, 20, 3, 2),
-            ])
-        );
-    }
-
-    /// Verify that we split the remaining space horizontally in order to create a combination of
-    /// two splits where one is as large as possible and the other is as small as possible.
-    ///
-    /// In general - large spaces are more usable and small spaces are less wasteful if they go
-    /// unused.
-    ///
-    /// ```text
-    /// ┌─────────────────────┐            
-    /// │                     │            
-    /// │                     │            
-    /// │                     │            
-    /// │                     │            
-    /// │                     │            
-    /// ├────────────────┬────▶ Horizontal
-    /// │                │    │   Split    
-    /// │   Placed Rect  │    │            
-    /// │                │    │            
-    /// └────────────────┴────┘            
-    /// ```
-    #[test]
-    fn splits_horizontally_to_create_largest_possible_bin_split() {
-        let bin_section = bin_section_width_height_layer_count(50, 100, 1);
-        let placement = LayeredRect::new(40, 20, 1);
-
-        assert_eq!(
-            bin_section
-                .try_place(&placement, &volume_heuristic)
-                .unwrap(),
-            NewEmptyBinSections::Two([
-                BinSection::new(0, 20, 50, 80, 0, 1),
-                BinSection::new(40, 0, 10, 20, 0, 1),
-            ])
-        );
-    }
-
-    /// Same as `#[test] splits_horizontally_to_create_largest_possible_bin_split` but with a third
-    /// full empty section behind.
-    #[test]
-    fn splits_horizontally_to_create_largest_possible_bin_split_multi_layered() {
-        let bin_section = bin_section_width_height_layer_count(50, 100, 3);
-        let placement = LayeredRect::new(40, 20, 1);
-
-        assert_eq!(
-            bin_section
-                .try_place(&placement, &volume_heuristic)
-                .unwrap(),
-            NewEmptyBinSections::Three([
-                BinSection::new(0, 20, 50, 80, 0, 1),
-                BinSection::new(40, 0, 10, 20, 0, 1),
-                BinSection::new(0, 0, 50, 100, 1, 2)
-            ])
-        );
-    }
-
-    /// Verify that we split the remaining space vertically in order to create a combination of
-    /// two splits where one is as large as possible and the other is as small as possible.
-    ///
-    /// In general - large spaces are more usable and small spaces are less wasteful if they go
-    /// unused.
-    ///
-    /// ```text
-    ///               Vertical                        
-    ///                Split                          
-    /// ┌────────────────▲──────────────┐
-    /// ├────────────────┤              │
-    /// │                │              │
-    /// │   Placed Rect  │              │
-    /// │                │              │
-    /// └────────────────┴──────────────┘
-    /// ```
-    #[test]
-    fn splits_vertically_to_create_largest_possible_bin_split() {
-        let bin_section = bin_section_width_height_layer_count(100, 50, 1);
-        let placement = LayeredRect::new(20, 40, 1);
-
-        assert_eq!(
-            bin_section
-                .try_place(&placement, &volume_heuristic)
-                .unwrap(),
-            NewEmptyBinSections::Two([
-                BinSection::new(20, 0, 80, 50, 0, 1),
-                BinSection::new(0, 40, 20, 10, 0, 1),
-            ])
-        );
-    }
-
-    /// Same as `#[test] splits_vertically_to_create_largest_possible_bin_split` but with a third
-    /// full empty section behind.
-    #[test]
-    fn splits_vertically_to_create_largest_possible_bin_split_multi_layered() {
-        let bin_section = bin_section_width_height_layer_count(100, 50, 3);
-        let placement = LayeredRect::new(20, 40, 1);
-
-        assert_eq!(
-            bin_section
-                .try_place(&placement, &volume_heuristic)
-                .unwrap(),
-            NewEmptyBinSections::Three([
-                BinSection::new(20, 0, 80, 50, 0, 1),
-                BinSection::new(0, 40, 20, 10, 0, 1),
-                BinSection::new(0, 0, 100, 50, 1, 2)
-            ])
+        test_splits(
+            FULL,
+            whd,
+            [
+                BinSection::new_spread(whd.width, 0, 0, FULL - whd.width, FULL, FULL),
+                BinSection::new_spread(0, whd.height, 0, whd.width, FULL - whd.height, FULL),
+                BinSection::new_spread(0, 0, whd.depth, whd.width, whd.height, FULL - whd.depth),
+            ],
         );
     }
 
     #[test]
-    fn add_tests_for_all_6_split_scenarios() {
+    fn rotation_tests() {
         unimplemented!()
     }
 
-    // -------
-    // Trying out tests where we just have 6 tests, one for each potential split variant
-    // -------
-
-    fn bin_section_width_height(width: u32, height: u32) -> BinSection {
-        BinSection::new(0, 0, width, height, 0, 1)
-    }
-
-    fn bin_section_width_height_layer_count(
-        width: u32,
-        height: u32,
-        layer_count: u32,
-    ) -> BinSection {
-        BinSection::new(0, 0, width, height, 0, layer_count)
+    fn bin_section_width_height_depth(width: u32, height: u32, depth: u32) -> BinSection {
+        BinSection::new(
+            0,
+            0,
+            0,
+            WidthHeightDepth {
+                width,
+                height,
+                depth,
+            },
+        )
     }
 }
