@@ -11,6 +11,7 @@ pub struct BinSection {
     layer_count: u32,
 }
 
+/// An error while attempting to place a rectangle within a bin section;
 #[derive(Debug, thiserror::Error, Eq, PartialEq)]
 pub enum BinSectionError {
     #[error("Can not place a rectangle inside of a bin that is wider than that rectangle.")]
@@ -242,17 +243,67 @@ mod tests {
         );
     }
 
+    /// Verify that we split the remaining space horizontally in order to create a combination of
+    /// two splits where one is as large as possible and the other is as small as possible.
+    ///
+    /// In general - large spaces are more usable and small spaces are less wasteful if they go
+    /// unused.
+    ///
+    /// ```text
+    /// ┌─────────────────────┐            
+    /// │                     │            
+    /// │                     │            
+    /// │                     │            
+    /// │                     │            
+    /// │                     │            
+    /// ├────────────────┬────▶ Horizontal
+    /// │                │    │   Split    
+    /// │   Placed Rect  │    │            
+    /// │                │    │            
+    /// └────────────────┴────┘            
+    /// ```
     #[test]
-    fn todo() {
-        unimplemented!(
-            r#"
-        Add test verifying that we split in order to create the smallest possible and largest possible
-        slit. There are two directions that you can choose to split so we want to choose the right one.
-        
-        Add one test for if the box split should be vertical and one test where the split should
-        be horizontal. Add monodraw diagrams to both tests to visualize.
-        "#
-        )
+    fn splits_horizontally_to_create_largest_possible_bin_split() {
+        let bin_section = bin_section_width_height_layer_count(50, 100, 1);
+        let placement = LayeredRect::new(40, 20, 1);
+
+        assert_eq!(
+            bin_section.try_place(&placement).unwrap(),
+            NewEmptyBinSections::Two([
+                BinSection::new(0, 20, 50, 80, 0, 1),
+                BinSection::new(40, 0, 10, 100, 0, 1),
+            ])
+        );
+    }
+
+    /// Verify that we split the remaining space vertically in order to create a combination of
+    /// two splits where one is as large as possible and the other is as small as possible.
+    ///
+    /// In general - large spaces are more usable and small spaces are less wasteful if they go
+    /// unused.
+    ///
+    /// ```text
+    ///               Vertical                        
+    ///                Split                          
+    /// ┌────────────────▲──────────────┐
+    /// ├────────────────┤              │
+    /// │                │              │
+    /// │   Placed Rect  │              │
+    /// │                │              │
+    /// └────────────────┴──────────────┘
+    /// ```
+    #[test]
+    fn splits_vertically_to_create_largest_possible_bin_split() {
+        let bin_section = bin_section_width_height_layer_count(100, 50, 1);
+        let placement = LayeredRect::new(20, 40, 1);
+
+        assert_eq!(
+            bin_section.try_place(&placement).unwrap(),
+            NewEmptyBinSections::Two([
+                BinSection::new(20, 0, 80, 50, 0, 1),
+                BinSection::new(0, 40, 100, 10, 0, 1),
+            ])
+        );
     }
 
     fn bin_section_width_height(width: u32, height: u32) -> BinSection {

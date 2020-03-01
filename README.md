@@ -1,6 +1,6 @@
 # rectangle-pack [![Actions Status](https://github.com/chinedufn/rectangle-pack/workflows/test/badge.svg)](https://github.com/chinedufn/rectangle-pack/actions) [![docs](https://docs.rs/rectangle-pack/badge.svg)](https://docs.rs/rectangle-pack)
 
-> A minimal rectangle packer designed to be adapt to both simple and complex use cases. Supports both two and three dimensions.
+> A minimal, zero dependency rectangle packer capable of handling simple and complex use cases alike. Supports both two and three dimensions.
 
 `rectangle-pack` is a library focused on laying out any number of smaller rectangles (both 2d rectangles and 3d rectangular prisms) inside any number of larger rectangles.
 
@@ -67,6 +67,8 @@ The API shouldn't know about the specifics of any of these requirements - it sho
 - User provided heuristics to grant full control over the packing approach.
 
 ## Packing Algorithm
+
+- If necessary a texture will be duplicated in order to 
 
 ## To Test
 
