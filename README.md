@@ -97,6 +97,18 @@ As such there is functionality that could be useful that was not explored since 
 
 Here are some things that could be useful in the future.
 
+### Three-Dimensional Incoming Rectangle Rotation
+
+When attempting to place a Rectangle into the smallest available bin section we might want to rotate the rectangle in order to see which orientation produces the best fit.
+
+This could be accomplished by:
+
+1. The API exposes three booleans for every incoming rectangles, `allow_global_x_axis_rotation`, `allow_global_y_axis_rotation`, `allow_global_z_axis_rotation`.
+
+2. Let's say all three are enabled. When attempting to place the rectangle/box we should attempt it in all 6 possible orientations and then select the best placement (based on the `MoreSuitableContainersFn` heuristic).
+
+3. Return information to the caller about which axis ended up being rotated.
+
 ### Mutually exclusive groups
 
 An example of this is the ability to ensure that certain rectqngle groups are not placed in the same bins.

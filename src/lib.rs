@@ -98,9 +98,9 @@ struct LayeredRect {
     width: u32,
     height: u32,
     depth: u32,
-    allow_x_axis_rotation: bool,
-    allow_y_axis_rotation: bool,
-    allow_z_axis_rotation: bool,
+    allow_global_x_axis_rotation: bool,
+    allow_global_y_axis_rotation: bool,
+    allow_global_z_axis_rotation: bool,
 }
 
 impl Into<WidthHeightDepth> for LayeredRect {
@@ -120,9 +120,9 @@ impl LayeredRect {
             height,
             depth,
             // Rotation is not yet supported
-            allow_x_axis_rotation: false,
-            allow_y_axis_rotation: false,
-            allow_z_axis_rotation: false,
+            allow_global_x_axis_rotation: false,
+            allow_global_y_axis_rotation: false,
+            allow_global_z_axis_rotation: false,
         }
     }
 }
