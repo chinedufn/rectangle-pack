@@ -17,9 +17,9 @@ where
     InboundId: Debug + Hash + Eq,
     GroupId: Debug + Hash + Eq,
 {
-    inbound_id_to_group_ids: HashMap<InboundId, Vec<Group<GroupId, InboundId>>>,
-    group_id_to_inbound_ids: HashMap<Group<GroupId, InboundId>, Vec<InboundId>>,
-    rects: HashMap<InboundId, LayeredRect>,
+    pub(crate) inbound_id_to_group_ids: HashMap<InboundId, Vec<Group<GroupId, InboundId>>>,
+    pub(crate) group_id_to_inbound_ids: HashMap<Group<GroupId, InboundId>, Vec<InboundId>>,
+    pub(crate) rects: HashMap<InboundId, LayeredRect>,
 }
 
 /// A group of rectangles that need to be placed together

@@ -45,8 +45,12 @@ impl BinSection {
 /// An error while attempting to place a rectangle within a bin section;
 #[derive(Debug, thiserror::Error, Eq, PartialEq)]
 pub enum BinSectionError {
-    #[error("Can not place a rectangle inside of a bin that is smaller than that rectangle.")]
-    PlacementLargerThanBinSection,
+    #[error("Can not place a rectangle inside of a bin that is wider than that rectangle.")]
+    PlacementWiderThanBinSection,
+    #[error("Can not place a rectangle inside of a bin that is taller than that rectangle.")]
+    PlacementTallerThanBinSection,
+    #[error("Can not place a rectangle inside of a bin that is deeper than that rectangle.")]
+    PlacementDeeperThanBinSection,
 }
 
 impl BinSection {
@@ -166,10 +170,15 @@ impl BinSection {
     }
 
     fn incoming_can_fit(&self, incoming: &LayeredRect) -> Result<(), BinSectionError> {
-        if incoming.width() * incoming.height() * incoming.depth()
-            > self.whd.width * self.whd.height * self.whd.depth
-        {
-            return Err(BinSectionError::PlacementLargerThanBinSection);
+        if incoming.width() > self.whd.width {
+            return Err(BinSectionError::PlacementWiderThanBinSection);
+        }
+        if incoming.height() > self.whd.height {
+            return Err(BinSectionError::PlacementTallerThanBinSection);
+        }
+
+        if incoming.depth() > self.whd.depth {
+            return Err(BinSectionError::PlacementDeeperThanBinSection);
         }
 
         Ok(())
@@ -400,9 +409,9 @@ mod tests {
 
     const FULL: u32 = 100;
 
-    /// If we're trying to place a rectangle that is larger than the container we return an error
+    /// If we're trying to place a rectangle that is wider than the container we return an error
     #[test]
-    fn error_if_placement_is_larger_than_bin_section() {
+    fn error_if_placement_is_wider_than_bin_section() {
         let bin_section = bin_section_width_height_depth(5, 20, 1);
         let placement = LayeredRect::new(6, 20, 1);
 
@@ -410,7 +419,35 @@ mod tests {
             bin_section
                 .try_place(&placement, &contains_smallest_box, &volume_heuristic)
                 .unwrap_err(),
-            BinSectionError::PlacementLargerThanBinSection
+            BinSectionError::PlacementWiderThanBinSection
+        );
+    }
+
+    /// If we're trying to place a rectangle that is taller than the container we return an error
+    #[test]
+    fn error_if_placement_is_taller_than_bin_section() {
+        let bin_section = bin_section_width_height_depth(5, 20, 1);
+        let placement = LayeredRect::new(5, 21, 1);
+
+        assert_eq!(
+            bin_section
+                .try_place(&placement, &contains_smallest_box, &volume_heuristic)
+                .unwrap_err(),
+            BinSectionError::PlacementTallerThanBinSection
+        );
+    }
+
+    /// If we're trying to place a rectangle that is deeper than the container we return an error
+    #[test]
+    fn error_if_placement_is_deeper_than_bin_section() {
+        let bin_section = bin_section_width_height_depth(5, 20, 1);
+        let placement = LayeredRect::new(5, 20, 2);
+
+        assert_eq!(
+            bin_section
+                .try_place(&placement, &contains_smallest_box, &volume_heuristic)
+                .unwrap_err(),
+            BinSectionError::PlacementDeeperThanBinSection
         );
     }
 

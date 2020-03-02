@@ -1,6 +1,6 @@
 #![deny(missing_docs)]
 
-use crate::bin_section::BinSection;
+use crate::bin_section::{BinSection, MoreSuitableContainersFn};
 use crate::layered_rect_groups::{Group, LayeredRectGroups};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -8,6 +8,8 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::iter::Once;
 use std::ops::Range;
+
+pub use crate::bin_section::contains_smallest_box;
 
 mod bin_section;
 mod layered_rect_groups;
@@ -28,16 +30,45 @@ pub struct WidthHeightDepth {
 pub type HeuristicFn = dyn Fn(WidthHeightDepth) -> u128;
 
 fn pack_rects<
-    InboundId: Debug + Hash + PartialEq + Eq,
-    BinId: Debug + Hash + PartialEq + Eq,
-    GroupId: Debug + Hash + PartialEq + Eq,
+    InboundId: Debug + Hash + PartialEq + Eq + Clone,
+    BinId: Debug + Hash + PartialEq + Eq + Clone,
+    GroupId: Debug + Hash + PartialEq + Eq + Clone,
 >(
     incoming_groups: &LayeredRectGroups<InboundId, GroupId>,
     mut target_bins: HashMap<BinId, TargetBin>,
     box_size_heuristic: &HeuristicFn,
-) -> Result<RectanglePackOk<InboundId, BinId>, RectanglePackError<InboundId, GroupId>> {
+    more_suitable_containers_fn: &MoreSuitableContainersFn,
+) -> Result<RectanglePackOk<InboundId, BinId>, RectanglePackError> {
     let mut packed_locations = HashMap::new();
     let mut bin_stats = HashMap::new();
+
+    'group: for (group_id, incomings) in incoming_groups.group_id_to_inbound_ids.iter() {
+        'bin: for (bin_id, bin) in target_bins.iter_mut() {
+            let bin_clone = bin.clone();
+
+            'section: for remaining_section in bin_clone.remaining_sections.iter() {
+                'incoming: for incoming_id in incomings.iter() {
+                    let incoming = incoming_groups.rects[&incoming_id];
+
+                    let placement = remaining_section.try_place(
+                        &incoming,
+                        more_suitable_containers_fn,
+                        box_size_heuristic,
+                    );
+
+                    if placement.is_err() {
+                        continue 'section;
+                    }
+
+                    let (placement, new_sections) = placement.unwrap();
+
+                    unimplemented!()
+                }
+            }
+        }
+
+        return Err(RectanglePackError::NotEnoughBinSpace);
+    }
 
     // for (inbound_id, inbound) in incoming.iter() {
     //     for (bin_id, bin) in target_bins.iter_mut() {
@@ -77,7 +108,7 @@ struct BinStats {
 }
 
 #[derive(Debug, PartialEq)]
-struct PackedLocation {
+pub struct PackedLocation {
     x: u32,
     y: u32,
     z: u32,
@@ -94,7 +125,7 @@ enum RotatedBy {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-struct LayeredRect {
+pub struct LayeredRect {
     width: u32,
     height: u32,
     depth: u32,
@@ -143,47 +174,39 @@ impl LayeredRect {
 
 /// An error while attempting to pack rectangles into bins.
 #[derive(Debug, thiserror::Error, PartialEq)]
-pub enum RectanglePackError<InboundId: Debug + PartialEq, GroupId: Debug + Hash + Eq> {
+pub enum RectanglePackError {
     /// The rectangles can't be placed into the bins. More bin space needs to be provided.
-    #[error(
-        r#"Not enough space remaining to place {failed_at_group_id:?}.
-Placed invidiuals: {placed_individuals:?}
-Unplaced invidiuals: {unplaced_individuals:?}
-Placed groups: {placed_groups:?}
-Unplaced groups: {unplaced_groups:?}
-"#
-    )]
-    NotEnoughBinSpace {
-        failed_at_group_id: Group<GroupId, InboundId>,
-        placed_individuals: Vec<InboundId>,
-        unplaced_individuals: Vec<InboundId>,
-        placed_groups: Vec<GroupId>,
-        unplaced_groups: Vec<GroupId>,
-    },
+    #[error(r#"Not enough space to place all of the rectangles."#)]
+    NotEnoughBinSpace,
 }
 
+#[derive(Debug, Clone)]
 struct TargetBin {
     max_width: u32,
     max_height: u32,
-    layers: u32,
+    max_depth: u32,
     remaining_sections: Vec<BinSection>,
 }
 
 impl TargetBin {
-    pub fn new(max_width: u32, max_height: u32, layers: u32) -> Self {
-        unimplemented!()
-        // assert!(layers > 0);
-        //
-        // let remaining_sections = vec![BinSection::new_spread(
-        //     0, 0, max_width, max_height, 0, layers,
-        // )];
-        //
-        // TargetBin {
-        //     max_width,
-        //     max_height,
-        //     layers,
-        //     remaining_sections,
-        // }
+    pub fn new(max_width: u32, max_height: u32, max_depth: u32) -> Self {
+        let remaining_sections = vec![BinSection::new(
+            0,
+            0,
+            0,
+            WidthHeightDepth {
+                width: max_width,
+                height: max_height,
+                depth: max_depth,
+            },
+        )];
+
+        TargetBin {
+            max_width,
+            max_height,
+            max_depth,
+            remaining_sections,
+        }
     }
 }
 
@@ -203,16 +226,8 @@ mod tests {
         let mut groups: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
         groups.push_rect(InboundId::One, None, LayeredRect::new(3, 1, 1));
 
-        match pack_rects(&groups, targets, &volume_heuristic)
-            .err()
-            .unwrap()
-        {
-            RectanglePackError::NotEnoughBinSpace {
-                unplaced_individuals,
-                ..
-            } => {
-                assert_eq!(unplaced_individuals, vec![InboundId::One]);
-            }
+        match pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap_err() {
+            RectanglePackError::NotEnoughBinSpace => {}
         };
     }
 
