@@ -1,13 +1,14 @@
+//! `rectangle-pack` is a library focused on laying out any number of smaller rectangles
+//! (both 2d rectangles and 3d rectangular prisms) inside any number of larger rectangles.
+
 #![deny(missing_docs)]
 
 use crate::bin_section::{BinSection, MoreSuitableContainersFn};
 use crate::layered_rect_groups::{Group, LayeredRectGroups};
-use std::collections::hash_map::Entry;
+
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Error, Formatter};
 use std::hash::Hash;
-use std::iter::Once;
-use std::ops::Range;
 
 pub use crate::bin_section::contains_smallest_box;
 
@@ -39,12 +40,12 @@ fn pack_rects<
     GroupId: Debug + Hash + PartialEq + Eq + Clone,
 >(
     incoming_groups: &LayeredRectGroups<InboundId, GroupId>,
-    mut target_bins: HashMap<BinId, TargetBin>,
+    target_bins: HashMap<BinId, TargetBin>,
     box_size_heuristic: &HeuristicFn,
     more_suitable_containers_fn: &MoreSuitableContainersFn,
 ) -> Result<RectanglePackOk<InboundId, BinId>, RectanglePackError> {
     let mut packed_locations = HashMap::new();
-    let mut bin_stats = HashMap::new();
+    let bin_stats = HashMap::new();
 
     let mut target_bins: Vec<(BinId, TargetBin)> = target_bins.into_iter().collect();
     target_bins.sort_unstable_by(|a, b| {
@@ -93,7 +94,7 @@ fn pack_rects<
     });
 
     // FIXME: Split into individual functions for readability ... Too nested
-    'group: for (group_id, incomings) in group_id_to_inbound_ids {
+    'group: for (_group_id, incomings) in group_id_to_inbound_ids {
         'incoming: for incoming_id in incomings.iter() {
             'bin: for (bin_id, bin) in target_bins.iter_mut() {
                 let mut bin_clone = bin.clone();
@@ -234,11 +235,20 @@ impl LayeredRect {
 }
 
 /// An error while attempting to pack rectangles into bins.
-#[derive(Debug, thiserror::Error, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum RectanglePackError {
     /// The rectangles can't be placed into the bins. More bin space needs to be provided.
-    #[error(r#"Not enough space to place all of the rectangles."#)]
     NotEnoughBinSpace,
+}
+
+impl Display for RectanglePackError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            RectanglePackError::NotEnoughBinSpace => {
+                f.write_str("Not enough space to place all of the rectangles.")
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

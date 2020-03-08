@@ -1,6 +1,6 @@
 use crate::{HeuristicFn, LayeredRect, PackedLocation, RotatedBy, WidthHeightDepth};
 use std::cmp::Ordering;
-use std::hint::unreachable_unchecked;
+use std::fmt::{Display, Error, Formatter};
 
 /// Given two sets of containers, which of these is the more suitable for our packing.
 ///
@@ -42,14 +42,30 @@ impl BinSection {
 }
 
 /// An error while attempting to place a rectangle within a bin section;
-#[derive(Debug, thiserror::Error, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
+#[allow(missing_docs)]
 pub enum BinSectionError {
-    #[error("Can not place a rectangle inside of a bin that is wider than that rectangle.")]
     PlacementWiderThanBinSection,
-    #[error("Can not place a rectangle inside of a bin that is taller than that rectangle.")]
     PlacementTallerThanBinSection,
-    #[error("Can not place a rectangle inside of a bin that is deeper than that rectangle.")]
     PlacementDeeperThanBinSection,
+}
+
+impl Display for BinSectionError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let err = match self {
+            BinSectionError::PlacementWiderThanBinSection => {
+                "Can not place a rectangle inside of a bin that is wider than that rectangle."
+            }
+            BinSectionError::PlacementTallerThanBinSection => {
+                "Can not place a rectangle inside of a bin that is taller than that rectangle."
+            }
+            BinSectionError::PlacementDeeperThanBinSection => {
+                "Can not place a rectangle inside of a bin that is deeper than that rectangle."
+            }
+        };
+
+        f.write_str(err)
+    }
 }
 
 impl BinSection {
@@ -400,7 +416,6 @@ impl BinSection {
 mod tests {
     use super::*;
     use crate::{volume_heuristic, LayeredRect};
-    use std::sync::mpsc::TrySendError::Full;
 
     const BIGGEST: u32 = 50;
     const MIDDLE: u32 = 25;
