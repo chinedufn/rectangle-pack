@@ -5,7 +5,6 @@ use std::hint::unreachable_unchecked;
 /// Given two sets of containers, which of these is the more suitable for our packing.
 ///
 /// Ordering::Greater means the first set of containers is better.
-///
 /// Ordering::Less means the second set of containers is better.
 pub type MoreSuitableContainersFn =
     dyn Fn([WidthHeightDepth; 3], [WidthHeightDepth; 3], &HeuristicFn) -> Ordering;

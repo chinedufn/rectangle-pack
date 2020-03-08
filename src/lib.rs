@@ -1,4 +1,4 @@
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 
 use crate::bin_section::{BinSection, MoreSuitableContainersFn};
 use crate::layered_rect_groups::{Group, LayeredRectGroups};
@@ -13,6 +13,10 @@ pub use crate::bin_section::contains_smallest_box;
 
 mod bin_section;
 mod layered_rect_groups;
+
+pub fn volume_heuristic(whd: WidthHeightDepth) -> u128 {
+    (whd.width * whd.height * whd.depth) as _
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Ord, PartialOrd)]
 #[allow(missing_docs)]
@@ -42,12 +46,59 @@ fn pack_rects<
     let mut packed_locations = HashMap::new();
     let mut bin_stats = HashMap::new();
 
-    'group: for (group_id, incomings) in incoming_groups.group_id_to_inbound_ids.iter() {
-        'bin: for (bin_id, bin) in target_bins.iter_mut() {
-            let bin_clone = bin.clone();
+    let mut target_bins: Vec<(BinId, TargetBin)> = target_bins.into_iter().collect();
+    target_bins.sort_unstable_by(|a, b| {
+        box_size_heuristic(WidthHeightDepth {
+            width: a.1.max_width,
+            height: a.1.max_height,
+            depth: a.1.max_depth,
+        })
+        .cmp(&box_size_heuristic(WidthHeightDepth {
+            width: b.1.max_width,
+            height: b.1.max_height,
+            depth: b.1.max_depth,
+        }))
+    });
 
-            'section: for remaining_section in bin_clone.remaining_sections.iter() {
-                'incoming: for incoming_id in incomings.iter() {
+    let mut group_id_to_inbound_ids: Vec<(&Group<GroupId, InboundId>, &Vec<InboundId>)> =
+        incoming_groups.group_id_to_inbound_ids.iter().collect();
+    group_id_to_inbound_ids.sort_unstable_by(|a, b| {
+        let a_heuristic =
+            a.1.iter()
+                .map(|inbound| {
+                    //
+                    let rect = incoming_groups.rects[inbound];
+                    box_size_heuristic(WidthHeightDepth {
+                        width: rect.width,
+                        height: rect.height,
+                        depth: rect.depth,
+                    })
+                })
+                .sum();
+
+        let b_heuristic: u128 =
+            b.1.iter()
+                .map(|inbound| {
+                    //
+                    let rect = incoming_groups.rects[inbound];
+                    box_size_heuristic(WidthHeightDepth {
+                        width: rect.width,
+                        height: rect.height,
+                        depth: rect.depth,
+                    })
+                })
+                .sum();
+
+        b_heuristic.cmp(&a_heuristic)
+    });
+
+    // FIXME: Split into individual functions for readability ... Too nested
+    'group: for (group_id, incomings) in group_id_to_inbound_ids {
+        'incoming: for incoming_id in incomings.iter() {
+            'bin: for (bin_id, bin) in target_bins.iter_mut() {
+                let bin_clone = bin.clone();
+
+                'section: for remaining_section in bin_clone.remaining_sections.iter() {
                     let incoming = incoming_groups.rects[&incoming_id];
 
                     let placement = remaining_section.try_place(
@@ -60,14 +111,22 @@ fn pack_rects<
                         continue 'section;
                     }
 
+                    // TODO: Ignore sections with a volume of 0
                     let (placement, new_sections) = placement.unwrap();
 
-                    unimplemented!()
+                    bin.remaining_sections.pop();
+
+                    for new_section in new_sections.iter() {
+                        bin.remaining_sections.push(*new_section);
+                    }
+
+                    packed_locations.insert(incoming_id.clone(), (bin_id.clone(), placement));
+                    continue 'incoming;
                 }
+
+                return Err(RectanglePackError::NotEnoughBinSpace);
             }
         }
-
-        return Err(RectanglePackError::NotEnoughBinSpace);
     }
 
     // for (inbound_id, inbound) in incoming.iter() {
@@ -88,10 +147,6 @@ fn pack_rects<
         packed_locations,
         bin_stats,
     })
-}
-
-fn volume_heuristic(whd: WidthHeightDepth) -> u128 {
-    (whd.width * whd.height * whd.depth) as _
 }
 
 #[derive(Debug, PartialEq)]
@@ -231,133 +286,127 @@ mod tests {
         };
     }
 
-    /// If a multiple rectangles are in a batch then they must be placed together. If there is no
-    /// atlas that has enough space to fit them - we return an error.
-    #[test]
-    fn error_if_a_group_of_rectangles_could_not_fit_into_any_bin() {
-        unimplemented!();
-
-        // let mut groups = LayeredRectGroups::new();
-        // groups.push_rect(
-        //     InboundId::One,
-        //     Some(vec![GroupId::Five]),
-        //     LayeredRect::new(10, 10, 1),
-        // );
-        // groups.push_rect(
-        //     InboundId::Two,
-        //     Some(vec![GroupId::Five]),
-        //     LayeredRect::new(10, 10, 1),
-        // );
-        //
-        // let mut targets = HashMap::new();
-        // targets.insert(BinId::Three, TargetBin::new(19, 19, 1));
-        //
-        // match pack_rects(&groups, targets, &volume_heuristic).unwrap_err() {
-        //     RectanglePackError::NotEnoughBinSpace {
-        //         unplaced_individuals,
-        //         unplaced_groups,
-        //         ..
-        //     } => {
-        //         assert_eq!(unplaced_individuals, vec![InboundId::One, InboundId::Two]);
-        //         assert_eq!(unplaced_groups, vec![GroupId::Five]);
-        //     }
-        // };
-    }
-
     /// If we provide a single inbound rectangle and a single bin - it should be placed into that
     /// bin.
     #[test]
     fn one_inbound_rect_one_bin() {
-        unimplemented!();
-        // let mut groups: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
-        // groups.push_rect(InboundId::One, None, LayeredRect::new(1, 2, 1));
-        //
-        // let mut targets = HashMap::new();
-        // targets.insert(BinId::Three, TargetBin::new(5, 5, 1));
-        //
-        // let packed = pack_rects(&groups, targets, &volume_heuristic).unwrap();
-        // let locations = packed.packed_locations;
-        //
-        // assert_eq!(locations.len(), 1);
-        //
-        // assert_eq!(locations[&InboundId::One].0, BinId::Three,);
-        // assert_eq!(
-        //     locations[&InboundId::One].1,
-        //     PackedLocation {
-        //         left_top_front: [0, 1, 0],
-        //         x_axis_rotation: RotatedBy::ZeroDegrees,
-        //         y_axis_rotation: RotatedBy::ZeroDegrees,
-        //         z_axis_rotation: RotatedBy::ZeroDegrees,
-        //     }
-        // )
+        let mut groups: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
+        groups.push_rect(InboundId::One, None, LayeredRect::new(1, 2, 1));
+
+        let mut targets = HashMap::new();
+        targets.insert(BinId::Three, TargetBin::new(5, 5, 1));
+
+        let packed =
+            pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap();
+        let locations = packed.packed_locations;
+
+        assert_eq!(locations.len(), 1);
+
+        assert_eq!(locations[&InboundId::One].0, BinId::Three,);
+        assert_eq!(
+            locations[&InboundId::One].1,
+            PackedLocation {
+                x: 0,
+                y: 0,
+                z: 0,
+                whd: WidthHeightDepth {
+                    width: 1,
+                    height: 2,
+                    depth: 1
+                },
+                x_axis_rotation: RotatedBy::ZeroDegrees,
+                y_axis_rotation: RotatedBy::ZeroDegrees,
+                z_axis_rotation: RotatedBy::ZeroDegrees,
+            }
+        )
     }
 
     /// If we have one inbound rect and two bins, it should be placed into the smallest bin.
     #[test]
     fn one_inbound_rect_two_bins() {
-        unimplemented!()
-        // let mut groups: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
-        // groups.push_rect(InboundId::One, None, LayeredRect::new(2, 2, 1));
-        //
-        // let mut targets = HashMap::new();
-        // targets.insert(BinId::Three, TargetBin::new(5, 5, 1));
-        // targets.insert(BinId::Four, TargetBin::new(5, 5, 2));
-        //
-        // let packed = pack_rects(&groups, targets, &volume_heuristic).unwrap();
-        // let locations = packed.packed_locations;
-        //
-        // assert_eq!(locations[&InboundId::One].0, BinId::Four,);
-        //
-        // assert_eq!(locations.len(), 1);
-        // assert_eq!(
-        //     locations[&InboundId::One],
-        //     PackedLocation {
-        //         left_top_front: [0, 1, 0],
-        //         right_bottom_back: [1, 0, 0],
-        //         x_axis_rotation: RotatedBy::ZeroDegrees,
-        //         y_axis_rotation: RotatedBy::ZeroDegrees,
-        //         z_axis_rotation: RotatedBy::ZeroDegrees,
-        //     }
-        // )
+        let mut groups: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
+        groups.push_rect(InboundId::One, None, LayeredRect::new(2, 2, 1));
+
+        let mut targets = HashMap::new();
+        targets.insert(BinId::Three, TargetBin::new(5, 5, 1));
+        targets.insert(BinId::Four, TargetBin::new(5, 5, 2));
+
+        let packed =
+            pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap();
+        let locations = packed.packed_locations;
+
+        assert_eq!(locations[&InboundId::One].0, BinId::Three,);
+
+        assert_eq!(locations.len(), 1);
+        assert_eq!(
+            locations[&InboundId::One].1,
+            PackedLocation {
+                x: 0,
+                y: 0,
+                z: 0,
+                whd: WidthHeightDepth {
+                    width: 2,
+                    height: 2,
+                    depth: 1
+                },
+                x_axis_rotation: RotatedBy::ZeroDegrees,
+                y_axis_rotation: RotatedBy::ZeroDegrees,
+                z_axis_rotation: RotatedBy::ZeroDegrees,
+            }
+        )
     }
 
-    /// If we have two inbound rects and one bin they should both be placed in that bin.
+    /// If we have two inbound rects the smallest one should be placed first.
     #[test]
-    fn two_inbound_rects_one_bin() {
-        unimplemented!()
-        // let mut groups: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
-        // groups.push_rect(InboundId::One, None, LayeredRect::new(10, 10, 1));
-        // groups.push_rect(InboundId::Two, None, LayeredRect::new(10, 10, 1));
-        //
-        // let mut targets = HashMap::new();
-        // targets.insert(BinId::Three, TargetBin::new(20, 20, 2));
-        //
-        // let packed = pack_rects(&groups, targets, &volume_heuristic).unwrap();
-        // let locations = packed.packed_locations;
-        //
-        // assert_eq!(locations.len(), 2);
-        // assert_eq!(
-        //     locations[&InboundId::One],
-        //     PackedLocation {
-        //         bin_id: BinId::Three,
-        //         left_top_front: [0, 9],
-        //         right_bottom_back: [9, 0],
-        //         x_axis_rotation: RotatedBy::ZeroDegrees,
-        //         y_axis_rotation: RotatedBy::ZeroDegrees,
-        //         z_axis_rotation: RotatedBy::ZeroDegrees,
-        //     }
-        // );
-        // assert_eq!(
-        //     locations[&InboundId::Two],
-        //     PackedLocation {
-        //         bin_id: BinId::Three,
-        //         left_top_front: [0, 10],
-        //         right_bottom_back: [2, 0],
-        //         x_axis_rotation: RotatedBy::ZeroDegrees,
-        //         y_axis_rotation: RotatedBy::ZeroDegrees,
-        //         z_axis_rotation: RotatedBy::ZeroDegrees,
-        //     }
-        // )
+    fn places_largest_rectangles_first() {
+        let mut groups: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
+        groups.push_rect(InboundId::One, None, LayeredRect::new(10, 10, 1));
+        groups.push_rect(InboundId::Two, None, LayeredRect::new(5, 5, 1));
+
+        let mut targets = HashMap::new();
+        targets.insert(BinId::Three, TargetBin::new(20, 20, 2));
+
+        let packed =
+            pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap();
+        let locations = packed.packed_locations;
+
+        assert_eq!(locations.len(), 2);
+
+        assert_eq!(locations[&InboundId::One].0, BinId::Three,);
+        assert_eq!(locations[&InboundId::Two].0, BinId::Three,);
+
+        assert_eq!(
+            locations[&InboundId::One].1,
+            PackedLocation {
+                x: 0,
+                y: 0,
+                z: 0,
+                whd: WidthHeightDepth {
+                    width: 10,
+                    height: 10,
+                    depth: 1
+                },
+                x_axis_rotation: RotatedBy::ZeroDegrees,
+                y_axis_rotation: RotatedBy::ZeroDegrees,
+                z_axis_rotation: RotatedBy::ZeroDegrees,
+            }
+        );
+        assert_eq!(
+            locations[&InboundId::Two].1,
+            PackedLocation {
+                x: 10,
+                y: 0,
+                z: 0,
+                whd: WidthHeightDepth {
+                    width: 5,
+                    height: 5,
+                    depth: 1
+                },
+                x_axis_rotation: RotatedBy::ZeroDegrees,
+                y_axis_rotation: RotatedBy::ZeroDegrees,
+                z_axis_rotation: RotatedBy::ZeroDegrees,
+            }
+        )
     }
 
     /// We have two rectangles and two bins. Each bin has enough space to fit one rectangle.
@@ -422,7 +471,7 @@ mod tests {
     /// ```
     #[test]
     fn fills_small_sections_before_large_ones() {
-        unimplemented!()
+        unimplemented!(r#"Verify that we fill the smaller section first."#)
         // let mut targets = HashMap::new();
         // targets.insert(BinId::Three, TargetBin::new(100, 100, 1));
         //
