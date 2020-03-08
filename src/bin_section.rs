@@ -32,7 +32,7 @@ pub struct BinSection {
     x: u32,
     y: u32,
     z: u32,
-    whd: WidthHeightDepth,
+    pub(crate) whd: WidthHeightDepth,
 }
 
 impl BinSection {
@@ -592,10 +592,10 @@ mod tests {
         );
     }
 
-    #[test]
-    fn rotation_tests() {
-        unimplemented!()
-    }
+    // #[test]
+    // fn todo() {
+    //    unimplemented!("Add tests for supporting rotation");
+    // }
 
     fn bin_section_width_height_depth(width: u32, height: u32, depth: u32) -> BinSection {
         BinSection::new(
