@@ -1,0 +1,18 @@
+name: test
+
+on: [push]
+
+# TODO: Introduce caching https://github.com/actions/cache/blob/master/examples.md#rust---cargo
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions-rs/cargo@v1
+
+    - name: Rust Version Info
+      run: rustc --version && cargo --version
+
+    - name: Run tests
+      run: cargo test --workspace

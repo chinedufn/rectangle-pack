@@ -1,6 +1,6 @@
 # rectangle-pack [![Actions Status](https://github.com/chinedufn/rectangle-pack/workflows/test/badge.svg)](https://github.com/chinedufn/rectangle-pack/actions) [![docs](https://docs.rs/rectangle-pack/badge.svg)](https://docs.rs/rectangle-pack)
 
-> A minimal rectangle packer designed to conform to any two or three dimensional use case.
+> A minimal bin packer designed to conform to any two or three dimensional use case.
 
 `rectangle-pack` is a library focused on laying out any number of smaller rectangles (both 2d rectangles and 3d rectangular prisms) inside any number of larger rectangles.
 
@@ -124,7 +124,7 @@ I'm working on a game with some of the following texture atlas requirements (as 
     - For example - say there is a grass texture that is used in every grassy region of the game. Say each of those regions has some textures that are only used in that region and thus relegated to their own
       atlas. We want to make sure our grass texture is copied into each of those textures so that one texture can support the needs of that region instead of two.
 
-These requirements will be used as guiding pillars to design a flexible API.
+These requirements are the initial guiding pillars to design the rectangle-pack API.
 
 The API shouldn't know about the specifics of any of these requirements - it should just provide the bare minimum required to make them possible. We're trying to push as much into user-land as possible and leave
 `rectangle-pack`s responsibility to not much more than answering:

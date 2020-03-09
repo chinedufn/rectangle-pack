@@ -4,4 +4,4 @@ version = "0.1.0"
 authors = ["Chinedu Francis Nwafili <frankie.nwafili@gmail.com>"]
 edition = "2018"
 keywords = ["texture", "atlas", "bin", "rect", "box", "packer"]
-description = "A minimal rectangle packer designed to conform to any two or three dimensional use case."
+description = "A minimal bin packer designed to conform to any two or three dimensional use case."
