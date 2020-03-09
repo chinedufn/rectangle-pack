@@ -8,7 +8,8 @@ use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
 pub use crate::bin_section::contains_smallest_box;
-use crate::bin_section::{BinSection, MoreSuitableContainersFn};
+use crate::bin_section::BinSection;
+pub use crate::bin_section::MoreSuitableContainersFn;
 use crate::grouped_rects_to_place::Group;
 pub use crate::grouped_rects_to_place::GroupedRectsToPlace;
 pub use crate::target_bin::TargetBin;
@@ -369,7 +370,7 @@ mod tests {
         )
     }
 
-    /// If we have two inbound rects the smallest one should be placed first.
+    /// If we have two inbound rects the largest one should be placed first.
     #[test]
     fn places_largest_rectangles_first() {
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
@@ -426,7 +427,7 @@ mod tests {
     ///
     /// 1. First place the largest rectangle into the smallest bin.
     ///
-    /// 2. Second place largest rectangle into the next available bin (i.e. the largest one).
+    /// 2. Second place the remaining rectangle into the next available bin (i.e. the largest one).
     #[test]
     fn two_rects_two_bins() {
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();

@@ -4,6 +4,15 @@ use std::fmt::{Display, Formatter};
 
 /// Given two sets of containers, which of these is the more suitable for our packing.
 ///
+/// Useful when we're determining how to split up the remaining volume/area of a box/rectangle.
+///
+/// For example - we might deem it best to cut the remaining region vertically, or horizontally,
+/// or along the Z-axis.
+///
+/// This decision is based on the more suitable contains heuristic. We determine all 6 possible
+/// ways to divide up remaining space, sort them using the more suitable contains heuristic function
+/// and choose the best one.
+///
 /// Ordering::Greater means the first set of containers is better.
 /// Ordering::Less means the second set of containers is better.
 pub type MoreSuitableContainersFn =

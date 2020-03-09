@@ -189,11 +189,10 @@ We started with the algorithm described in [rectpack2D] and then made some adjus
 support our goal of flexibly supporting all use cases.
 
 
-- The heuristic is provided by the caller instead of having `rectangle-pack` decide on the heuristic.
+- The heuristic is provided by the caller instead of having `rectangle-pack` decide on a user provided heuristic.
 
 - When splitting an available section of a bin into two new sections of a bin - we do not decide on how the split should occur arbitrarily.
-  Instead, we base it on the heuristic. Whichever split (vertical or horizontal) produces the largest delta between the heuristic scores of the
-  two new bins will be used.
+  Instead, we base it on the user provided `more_suitable_containers` heuristic function.
 
 - There is a third dimension.
 
