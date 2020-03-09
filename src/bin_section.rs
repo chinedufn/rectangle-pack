@@ -17,8 +17,8 @@ pub fn contains_smallest_box(
     mut container2: [WidthHeightDepth; 3],
     heuristic: &BoxSizeHeuristicFn,
 ) -> Ordering {
-    container1.sort_unstable();
-    container2.sort_unstable();
+    container1.sort_unstable_by(|a, b| heuristic(*a).cmp(&heuristic(*b)));
+    container2.sort_unstable_by(|a, b| heuristic(*a).cmp(&heuristic(*b)));
 
     match heuristic(container2[0]).cmp(&heuristic(container1[0])) {
         Ordering::Equal => heuristic(container2[1]).cmp(&heuristic(container1[1])),

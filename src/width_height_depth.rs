@@ -16,4 +16,8 @@ impl WidthHeightDepth {
             depth,
         }
     }
+
+    pub fn volume(&self) -> u128 {
+        self.width as u128 * self.height as u128 * self.depth as u128
+    }
 }

@@ -12,22 +12,22 @@ use std::hash::Hash;
 /// A group's heuristic is computed by calculating the heuristic of all of the rectangles inside
 /// the group and then summing them.
 #[derive(Debug)]
-pub struct GroupedRectsToPlace<InboundId, GroupId = ()>
+pub struct GroupedRectsToPlace<RectToPlaceId, GroupId = ()>
 where
-    InboundId: Debug + Hash + Eq,
+    RectToPlaceId: Debug + Hash + Eq,
     GroupId: Debug + Hash + Eq,
 {
-    pub(crate) inbound_id_to_group_ids: HashMap<InboundId, Vec<Group<GroupId, InboundId>>>,
-    pub(crate) group_id_to_inbound_ids: HashMap<Group<GroupId, InboundId>, Vec<InboundId>>,
-    pub(crate) rects: HashMap<InboundId, RectToInsert>,
+    pub(crate) inbound_id_to_group_ids: HashMap<RectToPlaceId, Vec<Group<GroupId, RectToPlaceId>>>,
+    pub(crate) group_id_to_inbound_ids: HashMap<Group<GroupId, RectToPlaceId>, Vec<RectToPlaceId>>,
+    pub(crate) rects: HashMap<RectToPlaceId, RectToInsert>,
 }
 
 /// A group of rectangles that need to be placed together
 #[derive(Debug, Hash, Eq, PartialEq)]
-pub enum Group<GroupId, InboundId>
+pub enum Group<GroupId, RectToPlaceId>
 where
     GroupId: Debug + Hash + Eq + PartialEq,
-    InboundId: Debug,
+    RectToPlaceId: Debug,
 {
     /// An automatically generated (auto incrementing) group identifier for rectangles that were
     /// passed in without any associated group ids.
@@ -36,14 +36,14 @@ where
     /// easily compare their heuristics against those of other groups.
     ///
     /// If everything is a "group" - comparing groups becomes simpler.
-    Ungrouped(InboundId),
+    Ungrouped(RectToPlaceId),
     /// Wraps a user provided group identifier.
     Grouped(GroupId),
 }
 
-impl<InboundId, GroupId> GroupedRectsToPlace<InboundId, GroupId>
+impl<RectToPlaceId, GroupId> GroupedRectsToPlace<RectToPlaceId, GroupId>
 where
-    InboundId: Debug + Hash + Clone + Eq,
+    RectToPlaceId: Debug + Hash + Clone + Eq,
     GroupId: Debug + Hash + Clone + Eq,
 {
     /// Create a new `LayeredRectGroups`
@@ -63,7 +63,7 @@ where
     /// mistake and `None` should be used instead.
     pub fn push_rect(
         &mut self,
-        inbound_id: InboundId,
+        inbound_id: RectToPlaceId,
         group_ids: Option<Vec<GroupId>>,
         inbound: RectToInsert,
     ) {
@@ -110,16 +110,16 @@ mod tests {
     use crate::RectToInsert;
 
     /// Verify that if we insert a rectangle that doesn't have a group it is given a group ID based
-    /// on its inboundID.
+    /// on its RectToPlaceId.
     #[test]
     fn ungrouped_rectangles_use_their_inbound_id_as_their_group_id() {
         let mut lrg: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
 
-        lrg.push_rect(InboundId::One, None, RectToInsert::new(10, 10, 1));
+        lrg.push_rect(RectToPlaceId::One, None, RectToInsert::new(10, 10, 1));
 
         assert_eq!(
-            lrg.group_id_to_inbound_ids[&Group::Ungrouped(InboundId::One)],
-            vec![InboundId::One]
+            lrg.group_id_to_inbound_ids[&Group::Ungrouped(RectToPlaceId::One)],
+            vec![RectToPlaceId::One]
         );
     }
 
@@ -129,12 +129,20 @@ mod tests {
     fn group_id_to_inbound_ids() {
         let mut lrg = GroupedRectsToPlace::new();
 
-        lrg.push_rect(InboundId::One, Some(vec![0]), RectToInsert::new(10, 10, 1));
-        lrg.push_rect(InboundId::Two, Some(vec![0]), RectToInsert::new(10, 10, 1));
+        lrg.push_rect(
+            RectToPlaceId::One,
+            Some(vec![0]),
+            RectToInsert::new(10, 10, 1),
+        );
+        lrg.push_rect(
+            RectToPlaceId::Two,
+            Some(vec![0]),
+            RectToInsert::new(10, 10, 1),
+        );
 
         assert_eq!(
             lrg.group_id_to_inbound_ids[&Group::Grouped(0)],
-            vec![InboundId::One, InboundId::Two]
+            vec![RectToPlaceId::One, RectToPlaceId::Two]
         );
     }
 
@@ -144,21 +152,21 @@ mod tests {
         let mut lrg = GroupedRectsToPlace::new();
 
         lrg.push_rect(
-            InboundId::One,
+            RectToPlaceId::One,
             Some(vec![0, 1]),
             RectToInsert::new(10, 10, 1),
         );
 
-        lrg.push_rect(InboundId::Two, None, RectToInsert::new(10, 10, 1));
+        lrg.push_rect(RectToPlaceId::Two, None, RectToInsert::new(10, 10, 1));
 
         assert_eq!(
-            lrg.inbound_id_to_group_ids[&InboundId::One],
+            lrg.inbound_id_to_group_ids[&RectToPlaceId::One],
             vec![Group::Grouped(0), Group::Grouped(1)]
         );
 
         assert_eq!(
-            lrg.inbound_id_to_group_ids[&InboundId::Two],
-            vec![Group::Ungrouped(InboundId::Two)]
+            lrg.inbound_id_to_group_ids[&RectToPlaceId::Two],
+            vec![Group::Ungrouped(RectToPlaceId::Two)]
         );
     }
 
@@ -168,16 +176,16 @@ mod tests {
         let mut lrg = GroupedRectsToPlace::new();
 
         lrg.push_rect(
-            InboundId::One,
+            RectToPlaceId::One,
             Some(vec![0, 1]),
             RectToInsert::new(10, 10, 1),
         );
 
-        assert_eq!(lrg.rects[&InboundId::One], RectToInsert::new(10, 10, 1));
+        assert_eq!(lrg.rects[&RectToPlaceId::One], RectToInsert::new(10, 10, 1));
     }
 
     #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-    enum InboundId {
+    enum RectToPlaceId {
         One,
         Two,
     }

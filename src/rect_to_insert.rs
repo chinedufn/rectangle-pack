@@ -19,6 +19,7 @@ impl Into<WidthHeightDepth> for RectToInsert {
     }
 }
 
+#[allow(missing_docs)]
 impl RectToInsert {
     pub fn new(width: u32, height: u32, depth: u32) -> Self {
         RectToInsert {

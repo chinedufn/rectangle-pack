@@ -27,17 +27,17 @@ mod box_size_heuristics;
 
 /// Information about successfully packed rectangles.
 #[derive(Debug, PartialEq)]
-pub struct RectanglePackOk<InboundId: PartialEq + Eq + Hash, BinId: PartialEq + Eq + Hash> {
-    packed_locations: HashMap<InboundId, (BinId, PackedLocation)>,
+pub struct RectanglePackOk<RectToPlaceId: PartialEq + Eq + Hash, BinId: PartialEq + Eq + Hash> {
+    packed_locations: HashMap<RectToPlaceId, (BinId, PackedLocation)>,
     // TODO: Other information such as information about how the bins were packed
     // (perhaps percentage filled)
 }
 
-impl<InboundId: PartialEq + Eq + Hash, BinId: PartialEq + Eq + Hash>
-    RectanglePackOk<InboundId, BinId>
+impl<RectToPlaceId: PartialEq + Eq + Hash, BinId: PartialEq + Eq + Hash>
+    RectanglePackOk<RectToPlaceId, BinId>
 {
     /// Indicates where every incoming rectangle was placed
-    pub fn packed_locations(&self) -> &HashMap<InboundId, (BinId, PackedLocation)> {
+    pub fn packed_locations(&self) -> &HashMap<RectToPlaceId, (BinId, PackedLocation)> {
         &self.packed_locations
     }
 }
@@ -67,21 +67,21 @@ impl Display for RectanglePackError {
 ///
 /// [rectpack2D]: https://github.com/TeamHypersomnia/rectpack2D
 pub fn pack_rects<
-    InboundId: Debug + Hash + PartialEq + Eq + Clone,
+    RectToPlaceId: Debug + Hash + PartialEq + Eq + Clone,
     BinId: Debug + Hash + PartialEq + Eq + Clone,
     GroupId: Debug + Hash + PartialEq + Eq + Clone,
 >(
-    rects_to_place: &GroupedRectsToPlace<InboundId, GroupId>,
+    rects_to_place: &GroupedRectsToPlace<RectToPlaceId, GroupId>,
     target_bins: HashMap<BinId, TargetBin>,
     box_size_heuristic: &BoxSizeHeuristicFn,
     more_suitable_containers_fn: &MoreSuitableContainersFn,
-) -> Result<RectanglePackOk<InboundId, BinId>, RectanglePackError> {
+) -> Result<RectanglePackOk<RectToPlaceId, BinId>, RectanglePackError> {
     let mut packed_locations = HashMap::new();
 
     let mut target_bins: Vec<(BinId, TargetBin)> = target_bins.into_iter().collect();
     sort_bins_smallest_to_largest(&mut target_bins, box_size_heuristic);
 
-    let mut group_id_to_inbound_ids: Vec<(&Group<GroupId, InboundId>, &Vec<InboundId>)> =
+    let mut group_id_to_inbound_ids: Vec<(&Group<GroupId, RectToPlaceId>, &Vec<RectToPlaceId>)> =
         rects_to_place.group_id_to_inbound_ids.iter().collect();
     sort_groups_largest_to_smallest(
         &mut group_id_to_inbound_ids,
@@ -89,13 +89,20 @@ pub fn pack_rects<
         box_size_heuristic,
     );
 
-    'group: for (_group_id, incomings) in group_id_to_inbound_ids {
-        'incoming: for incoming_id in incomings.iter() {
+    'group: for (_group_id, rects_to_place_ids) in group_id_to_inbound_ids {
+        'incoming: for rect_to_place_id in rects_to_place_ids.iter() {
             for (bin_id, bin) in target_bins.iter_mut() {
+                if bin.remaining_sections.len() == 0 {
+                    continue;
+                }
+
                 let mut bin_clone = bin.clone();
 
+                let last_section_idx = bin_clone.remaining_sections.len() - 1;
+                let mut sections_tried = 0;
+
                 'section: while let Some(remaining_section) = bin_clone.remaining_sections.pop() {
-                    let rect_to_place = rects_to_place.rects[&incoming_id];
+                    let rect_to_place = rects_to_place.rects[&rect_to_place_id];
 
                     let placement = remaining_section.try_place(
                         &rect_to_place,
@@ -104,16 +111,17 @@ pub fn pack_rects<
                     );
 
                     if placement.is_err() {
+                        sections_tried += 1;
                         continue 'section;
                     }
 
                     let (placement, mut new_sections) = placement.unwrap();
                     sort_by_size_largest_to_smallest(&mut new_sections, box_size_heuristic);
 
-                    bin.remove_filled_section();
+                    bin.remove_filled_section(last_section_idx - sections_tried);
                     bin.add_new_sections(new_sections);
 
-                    packed_locations.insert(incoming_id.clone(), (bin_id.clone(), placement));
+                    packed_locations.insert(rect_to_place_id.clone(), (bin_id.clone(), placement));
 
                     continue 'incoming;
                 }
@@ -153,12 +161,12 @@ fn sort_by_size_largest_to_smallest(
     items.sort_unstable_by(|a, b| box_size_heuristic(b.whd).cmp(&box_size_heuristic(a.whd)));
 }
 
-fn sort_groups_largest_to_smallest<GroupId, InboundId>(
-    group_id_to_inbound_ids: &mut Vec<(&Group<GroupId, InboundId>, &Vec<InboundId>)>,
-    incoming_groups: &GroupedRectsToPlace<InboundId, GroupId>,
+fn sort_groups_largest_to_smallest<GroupId, RectToPlaceId>(
+    group_id_to_inbound_ids: &mut Vec<(&Group<GroupId, RectToPlaceId>, &Vec<RectToPlaceId>)>,
+    incoming_groups: &GroupedRectsToPlace<RectToPlaceId, GroupId>,
     box_size_heuristic: &BoxSizeHeuristicFn,
 ) where
-    InboundId: Debug + Hash + PartialEq + Eq + Clone,
+    RectToPlaceId: Debug + Hash + PartialEq + Eq + Clone,
     GroupId: Debug + Hash + PartialEq + Eq + Clone,
 {
     group_id_to_inbound_ids.sort_unstable_by(|a, b| {
@@ -215,7 +223,7 @@ mod tests {
         targets.insert(BinId::Three, TargetBin::new(2, 100, 1));
 
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
-        groups.push_rect(InboundId::One, None, RectToInsert::new(3, 1, 1));
+        groups.push_rect(RectToPlaceId::One, None, RectToInsert::new(3, 1, 1));
 
         match pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap_err() {
             RectanglePackError::NotEnoughBinSpace => {}
@@ -227,7 +235,7 @@ mod tests {
     #[test]
     fn one_inbound_rect_one_bin() {
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
-        groups.push_rect(InboundId::One, None, RectToInsert::new(1, 2, 1));
+        groups.push_rect(RectToPlaceId::One, None, RectToInsert::new(1, 2, 1));
 
         let mut targets = HashMap::new();
         targets.insert(BinId::Three, TargetBin::new(5, 5, 1));
@@ -238,9 +246,9 @@ mod tests {
 
         assert_eq!(locations.len(), 1);
 
-        assert_eq!(locations[&InboundId::One].0, BinId::Three,);
+        assert_eq!(locations[&RectToPlaceId::One].0, BinId::Three,);
         assert_eq!(
-            locations[&InboundId::One].1,
+            locations[&RectToPlaceId::One].1,
             PackedLocation {
                 x: 0,
                 y: 0,
@@ -261,7 +269,7 @@ mod tests {
     #[test]
     fn one_inbound_rect_two_bins() {
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
-        groups.push_rect(InboundId::One, None, RectToInsert::new(2, 2, 1));
+        groups.push_rect(RectToPlaceId::One, None, RectToInsert::new(2, 2, 1));
 
         let mut targets = HashMap::new();
         targets.insert(BinId::Three, TargetBin::new(5, 5, 1));
@@ -271,11 +279,11 @@ mod tests {
             pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap();
         let locations = packed.packed_locations;
 
-        assert_eq!(locations[&InboundId::One].0, BinId::Three,);
+        assert_eq!(locations[&RectToPlaceId::One].0, BinId::Three,);
 
         assert_eq!(locations.len(), 1);
         assert_eq!(
-            locations[&InboundId::One].1,
+            locations[&RectToPlaceId::One].1,
             PackedLocation {
                 x: 0,
                 y: 0,
@@ -296,8 +304,8 @@ mod tests {
     #[test]
     fn places_largest_rectangles_first() {
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
-        groups.push_rect(InboundId::One, None, RectToInsert::new(10, 10, 1));
-        groups.push_rect(InboundId::Two, None, RectToInsert::new(5, 5, 1));
+        groups.push_rect(RectToPlaceId::One, None, RectToInsert::new(10, 10, 1));
+        groups.push_rect(RectToPlaceId::Two, None, RectToInsert::new(5, 5, 1));
 
         let mut targets = HashMap::new();
         targets.insert(BinId::Three, TargetBin::new(20, 20, 2));
@@ -308,11 +316,11 @@ mod tests {
 
         assert_eq!(locations.len(), 2);
 
-        assert_eq!(locations[&InboundId::One].0, BinId::Three,);
-        assert_eq!(locations[&InboundId::Two].0, BinId::Three,);
+        assert_eq!(locations[&RectToPlaceId::One].0, BinId::Three,);
+        assert_eq!(locations[&RectToPlaceId::Two].0, BinId::Three,);
 
         assert_eq!(
-            locations[&InboundId::One].1,
+            locations[&RectToPlaceId::One].1,
             PackedLocation {
                 x: 0,
                 y: 0,
@@ -328,7 +336,7 @@ mod tests {
             }
         );
         assert_eq!(
-            locations[&InboundId::Two].1,
+            locations[&RectToPlaceId::Two].1,
             PackedLocation {
                 x: 10,
                 y: 0,
@@ -353,8 +361,8 @@ mod tests {
     #[test]
     fn two_rects_two_bins() {
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
-        groups.push_rect(InboundId::One, None, RectToInsert::new(15, 15, 1));
-        groups.push_rect(InboundId::Two, None, RectToInsert::new(20, 20, 1));
+        groups.push_rect(RectToPlaceId::One, None, RectToInsert::new(15, 15, 1));
+        groups.push_rect(RectToPlaceId::Two, None, RectToInsert::new(20, 20, 1));
 
         let mut targets = HashMap::new();
         targets.insert(BinId::Three, TargetBin::new(20, 20, 1));
@@ -366,11 +374,11 @@ mod tests {
 
         assert_eq!(locations.len(), 2);
 
-        assert_eq!(locations[&InboundId::One].0, BinId::Four,);
-        assert_eq!(locations[&InboundId::Two].0, BinId::Three,);
+        assert_eq!(locations[&RectToPlaceId::One].0, BinId::Four,);
+        assert_eq!(locations[&RectToPlaceId::Two].0, BinId::Three,);
 
         assert_eq!(
-            locations[&InboundId::One].1,
+            locations[&RectToPlaceId::One].1,
             PackedLocation {
                 x: 0,
                 y: 0,
@@ -386,7 +394,7 @@ mod tests {
             }
         );
         assert_eq!(
-            locations[&InboundId::Two].1,
+            locations[&RectToPlaceId::Two].1,
             PackedLocation {
                 x: 0,
                 y: 0,
@@ -428,8 +436,8 @@ mod tests {
 
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
 
-        groups.push_rect(InboundId::One, None, RectToInsert::new(50, 90, 1));
-        groups.push_rect(InboundId::Two, None, RectToInsert::new(1, 1, 1));
+        groups.push_rect(RectToPlaceId::One, None, RectToInsert::new(50, 90, 1));
+        groups.push_rect(RectToPlaceId::Two, None, RectToInsert::new(1, 1, 1));
 
         let packed =
             pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap();
@@ -437,11 +445,11 @@ mod tests {
 
         assert_eq!(locations.len(), 2);
 
-        assert_eq!(locations[&InboundId::One].0, BinId::Three,);
-        assert_eq!(locations[&InboundId::Two].0, BinId::Three,);
+        assert_eq!(locations[&RectToPlaceId::One].0, BinId::Three,);
+        assert_eq!(locations[&RectToPlaceId::Two].0, BinId::Three,);
 
         assert_eq!(
-            locations[&InboundId::One].1,
+            locations[&RectToPlaceId::One].1,
             PackedLocation {
                 x: 0,
                 y: 0,
@@ -457,7 +465,7 @@ mod tests {
             }
         );
         assert_eq!(
-            locations[&InboundId::Two].1,
+            locations[&RectToPlaceId::Two].1,
             PackedLocation {
                 x: 0,
                 y: 90,
@@ -505,22 +513,22 @@ mod tests {
 
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
 
-        groups.push_rect(InboundId::One, None, RectToInsert::new(50, 95, 1));
-        groups.push_rect(InboundId::Two, None, RectToInsert::new(50, 10, 1));
-        groups.push_rect(InboundId::Three, None, RectToInsert::new(20, 3, 1));
+        groups.push_rect(RectToPlaceId::One, None, RectToInsert::new(60, 95, 1));
+        groups.push_rect(RectToPlaceId::Two, None, RectToInsert::new(40, 10, 1));
+        groups.push_rect(RectToPlaceId::Three, None, RectToInsert::new(60, 3, 1));
 
         let packed =
             pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap();
         let locations = packed.packed_locations;
 
         assert_eq!(
-            locations[&InboundId::One].1,
+            locations[&RectToPlaceId::One].1,
             PackedLocation {
                 x: 0,
                 y: 0,
                 z: 0,
                 whd: WidthHeightDepth {
-                    width: 50,
+                    width: 60,
                     height: 95,
                     depth: 1
                 },
@@ -530,13 +538,13 @@ mod tests {
             }
         );
         assert_eq!(
-            locations[&InboundId::Two].1,
+            locations[&RectToPlaceId::Two].1,
             PackedLocation {
-                x: 50,
+                x: 60,
                 y: 0,
                 z: 0,
                 whd: WidthHeightDepth {
-                    width: 50,
+                    width: 40,
                     height: 10,
                     depth: 1
                 },
@@ -546,13 +554,13 @@ mod tests {
             }
         );
         assert_eq!(
-            locations[&InboundId::Three].1,
+            locations[&RectToPlaceId::Three].1,
             PackedLocation {
                 x: 0,
                 y: 95,
                 z: 0,
                 whd: WidthHeightDepth {
-                    width: 20,
+                    width: 60,
                     height: 3,
                     depth: 1
                 },
@@ -564,7 +572,7 @@ mod tests {
     }
 
     #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-    enum InboundId {
+    enum RectToPlaceId {
         One,
         Two,
         Three,
