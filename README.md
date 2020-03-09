@@ -1,4 +1,4 @@
-# rectangle-pack [![Actions Status](https://github.com/chinedufn/rectangle-pack/workflows/test/badge.svg)](https://github.com/chinedufn/rectangle-pack/actions) [![docs](https://docs.rs/rectangle-pack/badge.svg)](https://docs.rs/rectangle-pack)
+# rectangle-pack [![Actions Status](https://github.com/chinedufn/rectangle-pack/workflows/ci/badge.svg)](https://github.com/chinedufn/rectangle-pack/actions) [![docs](https://docs.rs/rectangle-pack/badge.svg)](https://docs.rs/rectangle-pack)
 
 > A minimal bin packer designed to conform to any two or three dimensional use case.
 

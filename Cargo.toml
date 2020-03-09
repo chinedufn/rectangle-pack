@@ -3,5 +3,5 @@ name = "rectangle-pack"
 version = "0.1.0"
 authors = ["Chinedu Francis Nwafili <frankie.nwafili@gmail.com>"]
 edition = "2018"
-keywords = ["texture", "atlas", "bin", "rect", "box", "packer"]
+keywords = ["texture", "atlas", "bin", "box", "packer"]
 description = "A minimal bin packer designed to conform to any two or three dimensional use case."
