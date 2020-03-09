@@ -5,3 +5,5 @@ authors = ["Chinedu Francis Nwafili <frankie.nwafili@gmail.com>"]
 edition = "2018"
 keywords = ["texture", "atlas", "bin", "box", "packer"]
 description = "A minimal bin packer designed to conform to any two or three dimensional use case."
+license = "MIT/Apache-2.0"
+repository = "https://github.com/chinedufn/rectangle-pack"
