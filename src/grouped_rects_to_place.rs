@@ -1,4 +1,4 @@
-use crate::LayeredRect;
+use crate::RectToInsert;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -12,14 +12,14 @@ use std::hash::Hash;
 /// A group's heuristic is computed by calculating the heuristic of all of the rectangles inside
 /// the group and then summing them.
 #[derive(Debug)]
-pub struct LayeredRectGroups<InboundId, GroupId = ()>
+pub struct GroupedRectsToPlace<InboundId, GroupId = ()>
 where
     InboundId: Debug + Hash + Eq,
     GroupId: Debug + Hash + Eq,
 {
     pub(crate) inbound_id_to_group_ids: HashMap<InboundId, Vec<Group<GroupId, InboundId>>>,
     pub(crate) group_id_to_inbound_ids: HashMap<Group<GroupId, InboundId>, Vec<InboundId>>,
-    pub(crate) rects: HashMap<InboundId, LayeredRect>,
+    pub(crate) rects: HashMap<InboundId, RectToInsert>,
 }
 
 /// A group of rectangles that need to be placed together
@@ -41,7 +41,7 @@ where
     Grouped(GroupId),
 }
 
-impl<InboundId, GroupId> LayeredRectGroups<InboundId, GroupId>
+impl<InboundId, GroupId> GroupedRectsToPlace<InboundId, GroupId>
 where
     InboundId: Debug + Hash + Clone + Eq,
     GroupId: Debug + Hash + Clone + Eq,
@@ -65,7 +65,7 @@ where
         &mut self,
         inbound_id: InboundId,
         group_ids: Option<Vec<GroupId>>,
-        inbound: LayeredRect,
+        inbound: RectToInsert,
     ) {
         self.rects.insert(inbound_id.clone(), inbound);
 
@@ -107,15 +107,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::LayeredRect;
+    use crate::RectToInsert;
 
     /// Verify that if we insert a rectangle that doesn't have a group it is given a group ID based
     /// on its inboundID.
     #[test]
     fn ungrouped_rectangles_use_their_inbound_id_as_their_group_id() {
-        let mut lrg: LayeredRectGroups<_, ()> = LayeredRectGroups::new();
+        let mut lrg: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
 
-        lrg.push_rect(InboundId::One, None, LayeredRect::new(10, 10, 1));
+        lrg.push_rect(InboundId::One, None, RectToInsert::new(10, 10, 1));
 
         assert_eq!(
             lrg.group_id_to_inbound_ids[&Group::Ungrouped(InboundId::One)],
@@ -127,10 +127,10 @@ mod tests {
     /// map of group id -> inbound rect id
     #[test]
     fn group_id_to_inbound_ids() {
-        let mut lrg = LayeredRectGroups::new();
+        let mut lrg = GroupedRectsToPlace::new();
 
-        lrg.push_rect(InboundId::One, Some(vec![0]), LayeredRect::new(10, 10, 1));
-        lrg.push_rect(InboundId::Two, Some(vec![0]), LayeredRect::new(10, 10, 1));
+        lrg.push_rect(InboundId::One, Some(vec![0]), RectToInsert::new(10, 10, 1));
+        lrg.push_rect(InboundId::Two, Some(vec![0]), RectToInsert::new(10, 10, 1));
 
         assert_eq!(
             lrg.group_id_to_inbound_ids[&Group::Grouped(0)],
@@ -141,15 +141,15 @@ mod tests {
     /// Verify that we store the map of inbound id -> group ids
     #[test]
     fn inbound_id_to_group_ids() {
-        let mut lrg = LayeredRectGroups::new();
+        let mut lrg = GroupedRectsToPlace::new();
 
         lrg.push_rect(
             InboundId::One,
             Some(vec![0, 1]),
-            LayeredRect::new(10, 10, 1),
+            RectToInsert::new(10, 10, 1),
         );
 
-        lrg.push_rect(InboundId::Two, None, LayeredRect::new(10, 10, 1));
+        lrg.push_rect(InboundId::Two, None, RectToInsert::new(10, 10, 1));
 
         assert_eq!(
             lrg.inbound_id_to_group_ids[&InboundId::One],
@@ -165,15 +165,15 @@ mod tests {
     /// Verify that we store in rectangle associated with its inbound ID
     #[test]
     fn store_the_inbound_rectangle() {
-        let mut lrg = LayeredRectGroups::new();
+        let mut lrg = GroupedRectsToPlace::new();
 
         lrg.push_rect(
             InboundId::One,
             Some(vec![0, 1]),
-            LayeredRect::new(10, 10, 1),
+            RectToInsert::new(10, 10, 1),
         );
 
-        assert_eq!(lrg.rects[&InboundId::One], LayeredRect::new(10, 10, 1));
+        assert_eq!(lrg.rects[&InboundId::One], RectToInsert::new(10, 10, 1));
     }
 
     #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]

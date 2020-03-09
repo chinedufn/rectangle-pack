@@ -1,4 +1,4 @@
-use crate::{HeuristicFn, LayeredRect, PackedLocation, RotatedBy, WidthHeightDepth};
+use crate::{BoxSizeHeuristicFn, PackedLocation, RectToInsert, RotatedBy, WidthHeightDepth};
 use std::cmp::Ordering;
 use std::fmt::{Display, Error, Formatter};
 
@@ -7,7 +7,7 @@ use std::fmt::{Display, Error, Formatter};
 /// Ordering::Greater means the first set of containers is better.
 /// Ordering::Less means the second set of containers is better.
 pub type MoreSuitableContainersFn =
-    dyn Fn([WidthHeightDepth; 3], [WidthHeightDepth; 3], &HeuristicFn) -> Ordering;
+    dyn Fn([WidthHeightDepth; 3], [WidthHeightDepth; 3], &BoxSizeHeuristicFn) -> Ordering;
 
 /// Select the container that has the smallest box.
 ///
@@ -15,7 +15,7 @@ pub type MoreSuitableContainersFn =
 pub fn contains_smallest_box(
     mut container1: [WidthHeightDepth; 3],
     mut container2: [WidthHeightDepth; 3],
-    heuristic: &HeuristicFn,
+    heuristic: &BoxSizeHeuristicFn,
 ) -> Ordering {
     container1.sort_unstable();
     container2.sort_unstable();
@@ -144,9 +144,9 @@ impl BinSection {
     /// calls and conditionals.
     pub fn try_place(
         &self,
-        incoming: &LayeredRect,
+        incoming: &RectToInsert,
         container_comparison_fn: &MoreSuitableContainersFn,
-        heuristic_fn: &HeuristicFn,
+        heuristic_fn: &BoxSizeHeuristicFn,
     ) -> Result<(PackedLocation, [BinSection; 3]), BinSectionError> {
         self.incoming_can_fit(incoming)?;
 
@@ -184,7 +184,7 @@ impl BinSection {
         Ok((packed_location, all_combinations[5]))
     }
 
-    fn incoming_can_fit(&self, incoming: &LayeredRect) -> Result<(), BinSectionError> {
+    fn incoming_can_fit(&self, incoming: &RectToInsert) -> Result<(), BinSectionError> {
         if incoming.width() > self.whd.width {
             return Err(BinSectionError::PlacementWiderThanBinSection);
         }
@@ -201,7 +201,7 @@ impl BinSection {
 
     fn width_largest_height_second_largest_depth_smallest(
         &self,
-        incoming: &LayeredRect,
+        incoming: &RectToInsert,
     ) -> [BinSection; 3] {
         [
             self.empty_space_directly_right(incoming),
@@ -212,7 +212,7 @@ impl BinSection {
 
     fn width_largest_depth_second_largest_height_smallest(
         &self,
-        incoming: &LayeredRect,
+        incoming: &RectToInsert,
     ) -> [BinSection; 3] {
         [
             self.empty_space_directly_right(incoming),
@@ -223,7 +223,7 @@ impl BinSection {
 
     fn height_largest_width_second_largest_depth_smallest(
         &self,
-        incoming: &LayeredRect,
+        incoming: &RectToInsert,
     ) -> [BinSection; 3] {
         [
             self.all_empty_space_right_excluding_behind(incoming),
@@ -234,7 +234,7 @@ impl BinSection {
 
     fn height_largest_depth_second_largest_width_smallest(
         &self,
-        incoming: &LayeredRect,
+        incoming: &RectToInsert,
     ) -> [BinSection; 3] {
         [
             self.all_empty_space_right(incoming),
@@ -245,7 +245,7 @@ impl BinSection {
 
     fn depth_largest_width_second_largest_height_smallest(
         &self,
-        incoming: &LayeredRect,
+        incoming: &RectToInsert,
     ) -> [BinSection; 3] {
         [
             self.all_empty_space_right_excluding_above(incoming),
@@ -256,7 +256,7 @@ impl BinSection {
 
     fn depth_largest_height_second_largest_width_smallest(
         &self,
-        incoming: &LayeredRect,
+        incoming: &RectToInsert,
     ) -> [BinSection; 3] {
         [
             self.all_empty_space_right(incoming),
@@ -265,7 +265,7 @@ impl BinSection {
         ]
     }
 
-    fn all_empty_space_above(&self, incoming: &LayeredRect) -> BinSection {
+    fn all_empty_space_above(&self, incoming: &RectToInsert) -> BinSection {
         BinSection::new_spread(
             self.x,
             self.y + incoming.height(),
@@ -276,7 +276,7 @@ impl BinSection {
         )
     }
 
-    fn all_empty_space_right(&self, incoming: &LayeredRect) -> BinSection {
+    fn all_empty_space_right(&self, incoming: &RectToInsert) -> BinSection {
         BinSection::new_spread(
             self.x + incoming.width(),
             self.y,
@@ -287,7 +287,7 @@ impl BinSection {
         )
     }
 
-    fn all_empty_space_behind(&self, incoming: &LayeredRect) -> BinSection {
+    fn all_empty_space_behind(&self, incoming: &RectToInsert) -> BinSection {
         BinSection::new_spread(
             self.x,
             self.y,
@@ -298,7 +298,7 @@ impl BinSection {
         )
     }
 
-    fn empty_space_directly_above(&self, incoming: &LayeredRect) -> BinSection {
+    fn empty_space_directly_above(&self, incoming: &RectToInsert) -> BinSection {
         BinSection::new_spread(
             self.x,
             self.y + incoming.height(),
@@ -309,7 +309,7 @@ impl BinSection {
         )
     }
 
-    fn empty_space_directly_right(&self, incoming: &LayeredRect) -> BinSection {
+    fn empty_space_directly_right(&self, incoming: &RectToInsert) -> BinSection {
         BinSection::new_spread(
             self.x + incoming.width(),
             self.y,
@@ -320,7 +320,7 @@ impl BinSection {
         )
     }
 
-    fn empty_space_directly_behind(&self, incoming: &LayeredRect) -> BinSection {
+    fn empty_space_directly_behind(&self, incoming: &RectToInsert) -> BinSection {
         BinSection::new(
             self.x,
             self.y,
@@ -333,7 +333,7 @@ impl BinSection {
         )
     }
 
-    fn all_empty_space_above_excluding_right(&self, incoming: &LayeredRect) -> BinSection {
+    fn all_empty_space_above_excluding_right(&self, incoming: &RectToInsert) -> BinSection {
         BinSection::new(
             self.x,
             self.y + incoming.height(),
@@ -346,7 +346,7 @@ impl BinSection {
         )
     }
 
-    fn all_empty_space_above_excluding_behind(&self, incoming: &LayeredRect) -> BinSection {
+    fn all_empty_space_above_excluding_behind(&self, incoming: &RectToInsert) -> BinSection {
         BinSection::new(
             self.x,
             self.y + incoming.height(),
@@ -359,7 +359,7 @@ impl BinSection {
         )
     }
 
-    fn all_empty_space_right_excluding_above(&self, incoming: &LayeredRect) -> BinSection {
+    fn all_empty_space_right_excluding_above(&self, incoming: &RectToInsert) -> BinSection {
         BinSection::new(
             self.x + incoming.width(),
             self.y,
@@ -372,7 +372,7 @@ impl BinSection {
         )
     }
 
-    fn all_empty_space_right_excluding_behind(&self, incoming: &LayeredRect) -> BinSection {
+    fn all_empty_space_right_excluding_behind(&self, incoming: &RectToInsert) -> BinSection {
         BinSection::new(
             self.x + incoming.width(),
             self.y,
@@ -385,7 +385,7 @@ impl BinSection {
         )
     }
 
-    fn all_empty_space_behind_excluding_above(&self, incoming: &LayeredRect) -> BinSection {
+    fn all_empty_space_behind_excluding_above(&self, incoming: &RectToInsert) -> BinSection {
         BinSection::new(
             self.x,
             self.y,
@@ -398,7 +398,7 @@ impl BinSection {
         )
     }
 
-    fn all_empty_space_behind_excluding_right(&self, incoming: &LayeredRect) -> BinSection {
+    fn all_empty_space_behind_excluding_right(&self, incoming: &RectToInsert) -> BinSection {
         BinSection::new(
             self.x,
             self.y,
@@ -415,7 +415,7 @@ impl BinSection {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{volume_heuristic, LayeredRect};
+    use crate::{volume_heuristic, RectToInsert};
 
     const BIGGEST: u32 = 50;
     const MIDDLE: u32 = 25;
@@ -427,7 +427,7 @@ mod tests {
     #[test]
     fn error_if_placement_is_wider_than_bin_section() {
         let bin_section = bin_section_width_height_depth(5, 20, 1);
-        let placement = LayeredRect::new(6, 20, 1);
+        let placement = RectToInsert::new(6, 20, 1);
 
         assert_eq!(
             bin_section
@@ -441,7 +441,7 @@ mod tests {
     #[test]
     fn error_if_placement_is_taller_than_bin_section() {
         let bin_section = bin_section_width_height_depth(5, 20, 1);
-        let placement = LayeredRect::new(5, 21, 1);
+        let placement = RectToInsert::new(5, 21, 1);
 
         assert_eq!(
             bin_section
@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn error_if_placement_is_deeper_than_bin_section() {
         let bin_section = bin_section_width_height_depth(5, 20, 1);
-        let placement = LayeredRect::new(5, 20, 2);
+        let placement = RectToInsert::new(5, 20, 2);
 
         assert_eq!(
             bin_section
@@ -475,7 +475,7 @@ mod tests {
 
         let whd = rect_to_place;
 
-        let placement = LayeredRect::new(whd.width, whd.height, whd.depth);
+        let placement = RectToInsert::new(whd.width, whd.height, whd.depth);
 
         let mut packed = bin_section
             .try_place(&placement, &contains_smallest_box, &volume_heuristic)
