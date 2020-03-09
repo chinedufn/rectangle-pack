@@ -27,40 +27,6 @@ mod width_height_depth;
 
 mod box_size_heuristics;
 
-/// Information about successfully packed rectangles.
-#[derive(Debug, PartialEq)]
-pub struct RectanglePackOk<RectToPlaceId: PartialEq + Eq + Hash, BinId: PartialEq + Eq + Hash> {
-    packed_locations: HashMap<RectToPlaceId, (BinId, PackedLocation)>,
-    // TODO: Other information such as information about how the bins were packed
-    // (perhaps percentage filled)
-}
-
-impl<RectToPlaceId: PartialEq + Eq + Hash, BinId: PartialEq + Eq + Hash>
-    RectanglePackOk<RectToPlaceId, BinId>
-{
-    /// Indicates where every incoming rectangle was placed
-    pub fn packed_locations(&self) -> &HashMap<RectToPlaceId, (BinId, PackedLocation)> {
-        &self.packed_locations
-    }
-}
-
-/// An error while attempting to pack rectangles into bins.
-#[derive(Debug, PartialEq)]
-pub enum RectanglePackError {
-    /// The rectangles can't be placed into the bins. More bin space needs to be provided.
-    NotEnoughBinSpace,
-}
-
-impl Display for RectanglePackError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        match self {
-            RectanglePackError::NotEnoughBinSpace => {
-                f.write_str("Not enough space to place all of the rectangles.")
-            }
-        }
-    }
-}
-
 /// Determine how to fit a set of incoming rectangles (2d or 3d) into a set of target bins.
 ///
 /// ## Example
@@ -202,6 +168,42 @@ pub fn pack_rects<
 
     Ok(RectanglePackOk { packed_locations })
 }
+
+/// Information about successfully packed rectangles.
+#[derive(Debug, PartialEq)]
+pub struct RectanglePackOk<RectToPlaceId: PartialEq + Eq + Hash, BinId: PartialEq + Eq + Hash> {
+    packed_locations: HashMap<RectToPlaceId, (BinId, PackedLocation)>,
+    // TODO: Other information such as information about how the bins were packed
+    // (perhaps percentage filled)
+}
+
+impl<RectToPlaceId: PartialEq + Eq + Hash, BinId: PartialEq + Eq + Hash>
+    RectanglePackOk<RectToPlaceId, BinId>
+{
+    /// Indicates where every incoming rectangle was placed
+    pub fn packed_locations(&self) -> &HashMap<RectToPlaceId, (BinId, PackedLocation)> {
+        &self.packed_locations
+    }
+}
+
+/// An error while attempting to pack rectangles into bins.
+#[derive(Debug, PartialEq)]
+pub enum RectanglePackError {
+    /// The rectangles can't be placed into the bins. More bin space needs to be provided.
+    NotEnoughBinSpace,
+}
+
+impl Display for RectanglePackError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            RectanglePackError::NotEnoughBinSpace => {
+                f.write_str("Not enough space to place all of the rectangles.")
+            }
+        }
+    }
+}
+
+impl std::error::Error for RectanglePackError {}
 
 fn sort_bins_smallest_to_largest<BinId>(
     bins: &mut Vec<(BinId, TargetBin)>,
