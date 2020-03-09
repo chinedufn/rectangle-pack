@@ -9,5 +9,5 @@ pub type BoxSizeHeuristicFn = dyn Fn(WidthHeightDepth) -> u128;
 
 /// The volume of the box
 pub fn volume_heuristic(whd: WidthHeightDepth) -> u128 {
-    (whd.width * whd.height * whd.depth) as _
+    whd.width as u128 * whd.height as u128 * whd.depth as u128
 }

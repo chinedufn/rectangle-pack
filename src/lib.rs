@@ -9,7 +9,8 @@ use std::hash::Hash;
 
 pub use crate::bin_section::contains_smallest_box;
 use crate::bin_section::{BinSection, MoreSuitableContainersFn};
-use crate::grouped_rects_to_place::{Group, GroupedRectsToPlace};
+use crate::grouped_rects_to_place::Group;
+pub use crate::grouped_rects_to_place::GroupedRectsToPlace;
 pub use crate::target_bin::TargetBin;
 use crate::width_height_depth::WidthHeightDepth;
 
@@ -60,6 +61,73 @@ impl Display for RectanglePackError {
 }
 
 /// Determine how to fit a set of incoming rectangles (2d or 3d) into a set of target bins.
+///
+/// ## Example
+///
+/// ```
+/// use rectangle_pack::{
+///     GroupedRectsToPlace,
+///     RectToInsert,
+///     pack_rects,
+///     TargetBin,
+///     volume_heuristic,
+///     contains_smallest_box
+/// };
+/// use std::collections::HashMap;
+///
+/// // A rectangle ID just needs to meet these trait bounds (ideally also Copy)
+/// #[derive(Debug, Hash, PartialEq, Eq, Clone)]
+/// enum MyCustomRectId {
+///     RectOne,
+///     RectTwo,
+///     RectThree,
+/// }
+///
+/// // A target bin ID just needs to meet these trait bounds (ideally also Copy)
+/// #[derive(Debug, Hash, PartialEq, Eq, Clone)]
+/// enum MyCustomBinId {
+///     DestinationBinOne,
+///     DestinationBinTwo,
+/// }
+///
+/// // A placement group just needs to meet these trait bounds (ideally also Copy).
+/// //
+/// // Groups are optional - they allow you to ensure that a set of rectangles will be placed
+/// // into the same bin. If this isn't possible an error is returned.
+/// #[derive(Debug, Hash, PartialEq, Eq, Clone)]
+/// enum MyCustomGroupId {
+///     GroupIdOne
+/// }
+///
+/// let mut rects_to_place = GroupedRectsToPlace::new();
+/// rects_to_place.push_rect(
+///     MyCustomRectId::RectOne,
+///     Some(vec![MyCustomGroupId::GroupIdOne]),
+///     RectToInsert::new(10, 20, 255)
+/// );
+/// rects_to_place.push_rect(
+///     MyCustomRectId::RectTwo,
+///     Some(vec![MyCustomGroupId::GroupIdOne]),
+///     RectToInsert::new(5, 50, 255)
+/// );
+/// rects_to_place.push_rect(
+///     MyCustomRectId::RectThree,
+///     None,
+///     RectToInsert::new(30, 30, 255)
+/// );
+///
+/// let mut target_bins = HashMap::new();
+/// target_bins.insert(MyCustomBinId::DestinationBinOne, TargetBin::new(2048, 2048, 255));
+/// target_bins.insert(MyCustomBinId::DestinationBinTwo, TargetBin::new(4096, 4096, 1020));
+///
+/// // Information about where each `MyCustomRectId` was placed
+/// let rectangle_placements = pack_rects(
+///     &rects_to_place,
+///     target_bins,
+///     &volume_heuristic,
+///     &contains_smallest_box
+/// ).unwrap();
+/// ```
 ///
 /// ## Algorithm
 ///

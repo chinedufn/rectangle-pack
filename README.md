@@ -1,6 +1,6 @@
 # rectangle-pack [![Actions Status](https://github.com/chinedufn/rectangle-pack/workflows/test/badge.svg)](https://github.com/chinedufn/rectangle-pack/actions) [![docs](https://docs.rs/rectangle-pack/badge.svg)](https://docs.rs/rectangle-pack)
 
-> A minimal, zero dependency rectangle packer designed to conform to any use two or three dimensional case.
+> A minimal rectangle packer designed to conform to any two or three dimensional use case.
 
 `rectangle-pack` is a library focused on laying out any number of smaller rectangles (both 2d rectangles and 3d rectangular prisms) inside any number of larger rectangles.
 
@@ -18,11 +18,72 @@ rectangle-pack = "0.1"
 ```
 
 ```rust
-//! A basic use case
+//! A basic example of packing rectangles into target bins
 
-use rectangle_pack;
+use rectangle_pack::{
+    GroupedRectsToPlace,
+    RectToInsert,
+    pack_rects,
+    TargetBin,
+    volume_heuristic,
+    contains_smallest_box
+};
+use std::collections::HashMap;
 
-// Trivial example here
+// A rectangle ID just needs to meet these trait bounds (ideally also Copy)
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+enum MyCustomRectId {
+    RectOne,
+    RectTwo,
+    RectThree,
+}
+
+// A target bin ID just needs to meet these trait bounds (ideally also Copy)
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+enum MyCustomBinId {
+    DestinationBinOne,
+    DestinationBinTwo,
+}
+
+// A placement group just needs to meet these trait bounds (ideally also Copy).
+//
+// Groups allow you to ensure that a set of rectangles will be placed
+// into the same bin. If this isn't possible an error is returned.
+//
+// Groups are optional.
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+enum MyCustomGroupId {
+    GroupIdOne
+}
+
+let mut rects_to_place = GroupedRectsToPlace::new();
+rects_to_place.push_rect(
+    MyCustomRectId::RectOne,
+    Some(vec![MyCustomGroupId::GroupIdOne]),
+    RectToInsert::new(10, 20, 255)
+);
+rects_to_place.push_rect(
+    MyCustomRectId::RectTwo,
+    Some(vec![MyCustomGroupId::GroupIdOne]),
+    RectToInsert::new(5, 50, 255)
+);
+rects_to_place.push_rect(
+    MyCustomRectId::RectThree,
+    None,
+    RectToInsert::new(30, 30, 255)
+);
+
+let mut target_bins = HashMap::new();
+target_bins.insert(MyCustomBinId::DestinationBinOne, TargetBin::new(2048, 2048, 255));
+target_bins.insert(MyCustomBinId::DestinationBinTwo, TargetBin::new(4096, 4096, 1020));
+
+// Information about where each `MyCustomRectId` was placed
+let rectangle_placements = pack_rects(
+    &rects_to_place,
+    target_bins,
+    &volume_heuristic,
+    &contains_smallest_box
+).unwrap();
 ```
 
 [Full API Documentation](https://docs.rs/rectangle-pack)
@@ -79,15 +140,11 @@ The API shouldn't know about the specifics of any of these requirements - it sho
 
 - Supports three dimensional rectangles through a width + height + depth based API.
 
-- Supports two dimensional rectangles (depth = 1)
+- Supports two dimensional rectangles (depth = 1).
 
 - User provided heuristics to grant full control over the packing algorithm.
 
-## Example Usage
-
-```rust
-
-```
+- Zero dependencies, making it easier to embed it inside of a more use case specific library without introducing bloat.
 
 ## Future Work
 
