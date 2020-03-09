@@ -17,10 +17,12 @@ use crate::width_height_depth::WidthHeightDepth;
 
 pub use self::box_size_heuristics::{volume_heuristic, BoxSizeHeuristicFn};
 pub use self::rect_to_insert::RectToInsert;
+pub use crate::packed_location::PackedLocation;
 
 mod bin_section;
 mod grouped_rects_to_place;
 
+mod packed_location;
 mod rect_to_insert;
 mod target_bin;
 mod width_height_depth;
@@ -259,25 +261,6 @@ fn sort_groups_largest_to_smallest<GroupId, RectToPlaceId>(
 
         b_heuristic.cmp(&a_heuristic)
     });
-}
-
-/// Describes how and where an incoming rectangle was packed into the target bins
-#[derive(Debug, PartialEq)]
-pub struct PackedLocation {
-    x: u32,
-    y: u32,
-    z: u32,
-    whd: WidthHeightDepth,
-    x_axis_rotation: RotatedBy,
-    y_axis_rotation: RotatedBy,
-    z_axis_rotation: RotatedBy,
-}
-
-#[derive(Debug, PartialEq)]
-#[allow(unused)] // TODO: Implement rotations
-enum RotatedBy {
-    ZeroDegrees,
-    NinetyDegrees,
 }
 
 #[cfg(test)]
