@@ -270,6 +270,7 @@ mod tests {
     use crate::{pack_rects, volume_heuristic, RectToInsert, RectanglePackError, TargetBin};
 
     use super::*;
+    use crate::packed_location::RotatedBy;
 
     /// If the provided rectangles can't fit into the provided bins.
     #[test]

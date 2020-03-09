@@ -3,18 +3,18 @@ use crate::width_height_depth::WidthHeightDepth;
 /// Describes how and where an incoming rectangle was packed into the target bins
 #[derive(Debug, PartialEq)]
 pub struct PackedLocation {
-    x: u32,
-    y: u32,
-    z: u32,
-    whd: WidthHeightDepth,
-    x_axis_rotation: RotatedBy,
-    y_axis_rotation: RotatedBy,
-    z_axis_rotation: RotatedBy,
+    pub(crate) x: u32,
+    pub(crate) y: u32,
+    pub(crate) z: u32,
+    pub(crate) whd: WidthHeightDepth,
+    pub(crate) x_axis_rotation: RotatedBy,
+    pub(crate) y_axis_rotation: RotatedBy,
+    pub(crate) z_axis_rotation: RotatedBy,
 }
 
 #[derive(Debug, PartialEq)]
 #[allow(unused)] // TODO: Implement rotations
-enum RotatedBy {
+pub enum RotatedBy {
     ZeroDegrees,
     NinetyDegrees,
 }

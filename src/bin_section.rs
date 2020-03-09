@@ -1,4 +1,5 @@
-use crate::{BoxSizeHeuristicFn, PackedLocation, RectToInsert, RotatedBy, WidthHeightDepth};
+use crate::packed_location::RotatedBy;
+use crate::{BoxSizeHeuristicFn, PackedLocation, RectToInsert, WidthHeightDepth};
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 
