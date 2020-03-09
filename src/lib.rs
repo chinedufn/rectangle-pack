@@ -4,7 +4,7 @@
 #![deny(missing_docs)]
 
 use std::collections::HashMap;
-use std::fmt::{Debug, Display, Error, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
 pub use crate::bin_section::contains_smallest_box;
@@ -89,7 +89,7 @@ pub fn pack_rects<
         box_size_heuristic,
     );
 
-    'group: for (_group_id, rects_to_place_ids) in group_id_to_inbound_ids {
+    for (_group_id, rects_to_place_ids) in group_id_to_inbound_ids {
         'incoming: for rect_to_place_id in rects_to_place_ids.iter() {
             for (bin_id, bin) in target_bins.iter_mut() {
                 if bin.remaining_sections.len() == 0 {
@@ -203,6 +203,7 @@ pub struct PackedLocation {
 }
 
 #[derive(Debug, PartialEq)]
+#[allow(unused)] // TODO: Implement rotations
 enum RotatedBy {
     ZeroDegrees,
     NinetyDegrees,
@@ -582,11 +583,5 @@ mod tests {
     enum BinId {
         Three,
         Four,
-    }
-
-    #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-    enum GroupId {
-        Five,
-        Six,
     }
 }

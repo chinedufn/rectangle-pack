@@ -1,6 +1,6 @@
 use crate::{BoxSizeHeuristicFn, PackedLocation, RectToInsert, RotatedBy, WidthHeightDepth};
 use std::cmp::Ordering;
-use std::fmt::{Display, Error, Formatter};
+use std::fmt::{Display, Formatter};
 
 /// Given two sets of containers, which of these is the more suitable for our packing.
 ///
@@ -33,12 +33,6 @@ pub struct BinSection {
     y: u32,
     z: u32,
     pub(crate) whd: WidthHeightDepth,
-}
-
-impl BinSection {
-    fn empty() -> Self {
-        Self::default()
-    }
 }
 
 /// An error while attempting to place a rectangle within a bin section;

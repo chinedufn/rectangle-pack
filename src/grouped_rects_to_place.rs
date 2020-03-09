@@ -189,10 +189,4 @@ mod tests {
         One,
         Two,
     }
-
-    #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-    enum GroupId {
-        Ten,
-        Elevent,
-    }
 }
