@@ -103,6 +103,10 @@ mod box_size_heuristics;
 /// The algorithm was originally inspired by [rectpack2D] and then modified to work in 3D.
 ///
 /// [rectpack2D]: https://github.com/TeamHypersomnia/rectpack2D
+///
+/// ## TODO:
+///
+/// Optimize - plenty of room to remove clones and duplication .. etc
 pub fn pack_rects<
     RectToPlaceId: Debug + Hash + PartialEq + Eq + Clone,
     BinId: Debug + Hash + PartialEq + Eq + Clone,
@@ -126,19 +130,31 @@ pub fn pack_rects<
         box_size_heuristic,
     );
 
-    for (_group_id, rects_to_place_ids) in group_id_to_inbound_ids {
-        'incoming: for rect_to_place_id in rects_to_place_ids.iter() {
-            for (bin_id, bin) in target_bins.iter_mut() {
+    'group: for (_group_id, rects_to_place_ids) in group_id_to_inbound_ids {
+        'bin: for (bin_id, bin) in target_bins.iter_mut() {
+            if !can_fit_entire_group_into_bin(
+                bin.clone(),
+                &rects_to_place_ids[..],
+                rects_to_place,
+                box_size_heuristic,
+                more_suitable_containers_fn,
+            ) {
+                continue;
+            }
+
+            'incoming: for rect_to_place_id in rects_to_place_ids.iter() {
                 if bin.remaining_sections.len() == 0 {
                     continue;
                 }
 
                 let mut bin_clone = bin.clone();
 
-                let last_section_idx = bin_clone.remaining_sections.len() - 1;
+                let mut bin_sections = bin.remaining_sections.clone();
+
+                let last_section_idx = bin_sections.len() - 1;
                 let mut sections_tried = 0;
 
-                'section: while let Some(remaining_section) = bin_clone.remaining_sections.pop() {
+                'section: while let Some(remaining_section) = bin_sections.pop() {
                     let rect_to_place = rects_to_place.rects[&rect_to_place_id];
 
                     let placement = remaining_section.try_place(
@@ -164,11 +180,64 @@ pub fn pack_rects<
                 }
             }
 
-            return Err(RectanglePackError::NotEnoughBinSpace);
+            continue 'group;
         }
+        return Err(RectanglePackError::NotEnoughBinSpace);
     }
 
     Ok(RectanglePackOk { packed_locations })
+}
+
+// TODO: This is duplicative of the code above
+fn can_fit_entire_group_into_bin<RectToPlaceId, GroupId>(
+    mut bin: TargetBin,
+    group: &[RectToPlaceId],
+    rects_to_place: &GroupedRectsToPlace<RectToPlaceId, GroupId>,
+
+    box_size_heuristic: &BoxSizeHeuristicFn,
+    more_suitable_containers_fn: &MoreSuitableContainersFn,
+) -> bool
+where
+    RectToPlaceId: Debug + Hash + PartialEq + Eq + Clone,
+    GroupId: Debug + Hash + PartialEq + Eq + Clone,
+{
+    'incoming: for rect_to_place_id in group.iter() {
+        if bin.remaining_sections.len() == 0 {
+            return false;
+        }
+
+        let mut bin_sections = bin.remaining_sections.clone();
+
+        let last_section_idx = bin_sections.len() - 1;
+        let mut sections_tried = 0;
+
+        'section: while let Some(remaining_section) = bin_sections.pop() {
+            let rect_to_place = rects_to_place.rects[&rect_to_place_id];
+
+            let placement = remaining_section.try_place(
+                &rect_to_place,
+                more_suitable_containers_fn,
+                box_size_heuristic,
+            );
+
+            if placement.is_err() {
+                sections_tried += 1;
+                continue 'section;
+            }
+
+            let (placement, mut new_sections) = placement.unwrap();
+            sort_by_size_largest_to_smallest(&mut new_sections, box_size_heuristic);
+
+            bin.remove_filled_section(last_section_idx - sections_tried);
+            bin.add_new_sections(new_sections);
+
+            continue 'incoming;
+        }
+
+        return false;
+    }
+
+    true
 }
 
 /// Information about successfully packed rectangles.
@@ -280,6 +349,35 @@ mod tests {
 
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
         groups.push_rect(RectToPlaceId::One, None, RectToInsert::new(3, 1, 1));
+
+        match pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap_err() {
+            RectanglePackError::NotEnoughBinSpace => {}
+        };
+    }
+
+    /// Rectangles in the same group need to be placed in the same bin.
+    ///
+    /// Here we create two Rectangles in the same group and create two bins that could fit them
+    /// individually but cannot fit them together.
+    ///
+    /// Then we verify that we receive an error for being unable to place the group.
+    #[test]
+    fn error_if_cannot_fit_group() {
+        let mut targets = HashMap::new();
+        targets.insert(BinId::Three, TargetBin::new(100, 100, 1));
+        targets.insert(BinId::Four, TargetBin::new(100, 100, 1));
+
+        let mut groups = GroupedRectsToPlace::new();
+        groups.push_rect(
+            RectToPlaceId::One,
+            Some(vec!["A Group"]),
+            RectToInsert::new(100, 100, 1),
+        );
+        groups.push_rect(
+            RectToPlaceId::Two,
+            Some(vec!["A Group"]),
+            RectToInsert::new(100, 100, 1),
+        );
 
         match pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap_err() {
             RectanglePackError::NotEnoughBinSpace => {}
