@@ -1,6 +1,6 @@
 # rectangle-pack [![Actions Status](https://github.com/chinedufn/rectangle-pack/workflows/test/badge.svg)](https://github.com/chinedufn/rectangle-pack/actions) [![docs](https://docs.rs/rectangle-pack/badge.svg)](https://docs.rs/rectangle-pack)
 
-> A minimal bin packer designed to conform to any two or three dimensional use case.
+> A general purpose bin packer designed to conform to any two or three dimensional use case.
 
 `rectangle-pack` is a library focused on laying out any number of smaller rectangles (both 2d rectangles and 3d rectangular prisms) inside any number of larger rectangles.
 
