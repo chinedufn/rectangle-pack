@@ -131,7 +131,7 @@ pub fn pack_rects<
     );
 
     'group: for (_group_id, rects_to_place_ids) in group_id_to_inbound_ids {
-        'bin: for (bin_id, bin) in target_bins.iter_mut() {
+        for (bin_id, bin) in target_bins.iter_mut() {
             if !can_fit_entire_group_into_bin(
                 bin.clone(),
                 &rects_to_place_ids[..],
@@ -147,7 +147,7 @@ pub fn pack_rects<
                     continue;
                 }
 
-                let mut bin_clone = bin.clone();
+                let _bin_clone = bin.clone();
 
                 let mut bin_sections = bin.remaining_sections.clone();
 
@@ -225,7 +225,7 @@ where
                 continue 'section;
             }
 
-            let (placement, mut new_sections) = placement.unwrap();
+            let (_placement, mut new_sections) = placement.unwrap();
             sort_by_size_largest_to_smallest(&mut new_sections, box_size_heuristic);
 
             bin.remove_filled_section(last_section_idx - sections_tried);
