@@ -3,13 +3,13 @@
 
 #![deny(missing_docs)]
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
 pub use crate::bin_section::contains_smallest_box;
 use crate::bin_section::BinSection;
-pub use crate::bin_section::MoreSuitableContainersFn;
+pub use crate::bin_section::ComparePotentialContainersFn;
 use crate::grouped_rects_to_place::Group;
 pub use crate::grouped_rects_to_place::GroupedRectsToPlace;
 pub use crate::target_bin::TargetBin;
@@ -42,10 +42,10 @@ mod box_size_heuristics;
 ///     volume_heuristic,
 ///     contains_smallest_box
 /// };
-/// use std::collections::HashMap;
+/// use std::collections::{BTreeMap};
 ///
 /// // A rectangle ID just needs to meet these trait bounds (ideally also Copy)
-/// #[derive(Debug, Hash, PartialEq, Eq, Clone)]
+/// #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd)]
 /// enum MyCustomRectId {
 ///     RectOne,
 ///     RectTwo,
@@ -53,7 +53,7 @@ mod box_size_heuristics;
 /// }
 ///
 /// // A target bin ID just needs to meet these trait bounds (ideally also Copy)
-/// #[derive(Debug, Hash, PartialEq, Eq, Clone)]
+/// #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd)]
 /// enum MyCustomBinId {
 ///     DestinationBinOne,
 ///     DestinationBinTwo,
@@ -63,7 +63,7 @@ mod box_size_heuristics;
 /// //
 /// // Groups are optional - they allow you to ensure that a set of rectangles will be placed
 /// // into the same bin. If this isn't possible an error is returned.
-/// #[derive(Debug, Hash, PartialEq, Eq, Clone)]
+/// #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd)]
 /// enum MyCustomGroupId {
 ///     GroupIdOne
 /// }
@@ -85,7 +85,7 @@ mod box_size_heuristics;
 ///     RectToInsert::new(30, 30, 255)
 /// );
 ///
-/// let mut target_bins = HashMap::new();
+/// let mut target_bins = BTreeMap::new();
 /// target_bins.insert(MyCustomBinId::DestinationBinOne, TargetBin::new(2048, 2048, 255));
 /// target_bins.insert(MyCustomBinId::DestinationBinTwo, TargetBin::new(4096, 4096, 1020));
 ///
@@ -108,14 +108,14 @@ mod box_size_heuristics;
 ///
 /// Optimize - plenty of room to remove clones and duplication .. etc
 pub fn pack_rects<
-    RectToPlaceId: Debug + Hash + PartialEq + Eq + Clone,
-    BinId: Debug + Hash + PartialEq + Eq + Clone,
-    GroupId: Debug + Hash + PartialEq + Eq + Clone,
+    RectToPlaceId: Debug + Hash + PartialEq + Eq + Clone + Ord + PartialOrd,
+    BinId: Debug + Hash + PartialEq + Eq + Clone + Ord + PartialOrd,
+    GroupId: Debug + Hash + PartialEq + Eq + Clone + Ord + PartialOrd,
 >(
     rects_to_place: &GroupedRectsToPlace<RectToPlaceId, GroupId>,
-    target_bins: HashMap<BinId, TargetBin>,
+    target_bins: BTreeMap<BinId, TargetBin>,
     box_size_heuristic: &BoxSizeHeuristicFn,
-    more_suitable_containers_fn: &MoreSuitableContainersFn,
+    more_suitable_containers_fn: &ComparePotentialContainersFn,
 ) -> Result<RectanglePackOk<RectToPlaceId, BinId>, RectanglePackError> {
     let mut packed_locations = HashMap::new();
 
@@ -195,11 +195,11 @@ fn can_fit_entire_group_into_bin<RectToPlaceId, GroupId>(
     rects_to_place: &GroupedRectsToPlace<RectToPlaceId, GroupId>,
 
     box_size_heuristic: &BoxSizeHeuristicFn,
-    more_suitable_containers_fn: &MoreSuitableContainersFn,
+    more_suitable_containers_fn: &ComparePotentialContainersFn,
 ) -> bool
 where
-    RectToPlaceId: Debug + Hash + PartialEq + Eq + Clone,
-    GroupId: Debug + Hash + PartialEq + Eq + Clone,
+    RectToPlaceId: Debug + Hash + PartialEq + Eq + Clone + Ord + PartialOrd,
+    GroupId: Debug + Hash + PartialEq + Eq + Clone + Ord + PartialOrd,
 {
     'incoming: for rect_to_place_id in group.iter() {
         if bin.remaining_sections.len() == 0 {
@@ -282,7 +282,7 @@ fn sort_bins_smallest_to_largest<BinId>(
 ) where
     BinId: Debug + Hash + PartialEq + Eq + Clone,
 {
-    bins.sort_unstable_by(|a, b| {
+    bins.sort_by(|a, b| {
         box_size_heuristic(WidthHeightDepth {
             width: a.1.max_width,
             height: a.1.max_height,
@@ -300,7 +300,7 @@ fn sort_by_size_largest_to_smallest(
     items: &mut [BinSection; 3],
     box_size_heuristic: &BoxSizeHeuristicFn,
 ) {
-    items.sort_unstable_by(|a, b| box_size_heuristic(b.whd).cmp(&box_size_heuristic(a.whd)));
+    items.sort_by(|a, b| box_size_heuristic(b.whd).cmp(&box_size_heuristic(a.whd)));
 }
 
 fn sort_groups_largest_to_smallest<GroupId, RectToPlaceId>(
@@ -308,10 +308,10 @@ fn sort_groups_largest_to_smallest<GroupId, RectToPlaceId>(
     incoming_groups: &GroupedRectsToPlace<RectToPlaceId, GroupId>,
     box_size_heuristic: &BoxSizeHeuristicFn,
 ) where
-    RectToPlaceId: Debug + Hash + PartialEq + Eq + Clone,
-    GroupId: Debug + Hash + PartialEq + Eq + Clone,
+    RectToPlaceId: Debug + Hash + PartialEq + Eq + Clone + Ord + PartialOrd,
+    GroupId: Debug + Hash + PartialEq + Eq + Clone + Ord + PartialOrd,
 {
-    group_id_to_inbound_ids.sort_unstable_by(|a, b| {
+    group_id_to_inbound_ids.sort_by(|a, b| {
         let a_heuristic =
             a.1.iter()
                 .map(|inbound| {
@@ -334,17 +334,16 @@ fn sort_groups_largest_to_smallest<GroupId, RectToPlaceId>(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use crate::{pack_rects, volume_heuristic, RectToInsert, RectanglePackError, TargetBin};
 
     use super::*;
     use crate::packed_location::RotatedBy;
+    use std::path::PathBuf;
 
     /// If the provided rectangles can't fit into the provided bins.
     #[test]
     fn error_if_the_rectangles_cannot_fit_into_target_bins() {
-        let mut targets = HashMap::new();
+        let mut targets = BTreeMap::new();
         targets.insert(BinId::Three, TargetBin::new(2, 100, 1));
 
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
@@ -363,7 +362,7 @@ mod tests {
     /// Then we verify that we receive an error for being unable to place the group.
     #[test]
     fn error_if_cannot_fit_group() {
-        let mut targets = HashMap::new();
+        let mut targets = BTreeMap::new();
         targets.insert(BinId::Three, TargetBin::new(100, 100, 1));
         targets.insert(BinId::Four, TargetBin::new(100, 100, 1));
 
@@ -391,7 +390,7 @@ mod tests {
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
         groups.push_rect(RectToPlaceId::One, None, RectToInsert::new(1, 2, 1));
 
-        let mut targets = HashMap::new();
+        let mut targets = BTreeMap::new();
         targets.insert(BinId::Three, TargetBin::new(5, 5, 1));
 
         let packed =
@@ -425,7 +424,7 @@ mod tests {
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
         groups.push_rect(RectToPlaceId::One, None, RectToInsert::new(2, 2, 1));
 
-        let mut targets = HashMap::new();
+        let mut targets = BTreeMap::new();
         targets.insert(BinId::Three, TargetBin::new(5, 5, 1));
         targets.insert(BinId::Four, TargetBin::new(5, 5, 2));
 
@@ -461,7 +460,7 @@ mod tests {
         groups.push_rect(RectToPlaceId::One, None, RectToInsert::new(10, 10, 1));
         groups.push_rect(RectToPlaceId::Two, None, RectToInsert::new(5, 5, 1));
 
-        let mut targets = HashMap::new();
+        let mut targets = BTreeMap::new();
         targets.insert(BinId::Three, TargetBin::new(20, 20, 2));
 
         let packed =
@@ -518,7 +517,7 @@ mod tests {
         groups.push_rect(RectToPlaceId::One, None, RectToInsert::new(15, 15, 1));
         groups.push_rect(RectToPlaceId::Two, None, RectToInsert::new(20, 20, 1));
 
-        let mut targets = HashMap::new();
+        let mut targets = BTreeMap::new();
         targets.insert(BinId::Three, TargetBin::new(20, 20, 1));
         targets.insert(BinId::Four, TargetBin::new(50, 50, 1));
 
@@ -585,7 +584,7 @@ mod tests {
     /// ```
     #[test]
     fn fills_small_sections_before_large_ones() {
-        let mut targets = HashMap::new();
+        let mut targets = BTreeMap::new();
         targets.insert(BinId::Three, TargetBin::new(100, 100, 1));
 
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
@@ -662,7 +661,7 @@ mod tests {
     /// ```
     #[test]
     fn saves_bin_sections_for_future_use() {
-        let mut targets = HashMap::new();
+        let mut targets = BTreeMap::new();
         targets.insert(BinId::Three, TargetBin::new(100, 100, 1));
 
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
@@ -725,14 +724,57 @@ mod tests {
         );
     }
 
-    #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+    /// Create a handful of rectangles that need to be placed, with two of them in the same group
+    /// and the rest ungrouped.
+    /// Try placing them many times and verify that each time they are placed the exact same way.
+    #[test]
+    fn deterministic_packing() {
+        let mut previous_packed = None;
+
+        for _ in 0..5 {
+            let mut rects_to_place: GroupedRectsToPlace<PathBuf, &str> = GroupedRectsToPlace::new();
+
+            let mut target_bins = BTreeMap::new();
+            for bin_id in 0..5 {
+                target_bins.insert(bin_id, TargetBin::new(8, 8, 1));
+            }
+
+            let rectangles = vec![
+                "some-rectangle-0",
+                "some-rectangle-1",
+                "some-rectangle-2",
+                "some-rectangle-3",
+                "some-rectangle-4",
+            ];
+
+            for rect_id in rectangles.iter() {
+                rects_to_place.push_rect(PathBuf::from(rect_id), None, RectToInsert::new(4, 4, 1));
+            }
+
+            let packed = pack_rects(
+                &rects_to_place,
+                target_bins.clone(),
+                &volume_heuristic,
+                &contains_smallest_box,
+            )
+            .unwrap();
+
+            if let Some(previous_packed) = previous_packed.as_ref() {
+                assert_eq!(&packed, previous_packed);
+            }
+
+            previous_packed = Some(packed);
+        }
+    }
+
+    #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
     enum RectToPlaceId {
         One,
         Two,
         Three,
     }
 
-    #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+    #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
     enum BinId {
         Three,
         Four,

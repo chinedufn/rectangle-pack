@@ -1,6 +1,6 @@
 use crate::RectToInsert;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+use std::collections::btree_map::Entry;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -14,20 +14,22 @@ use std::hash::Hash;
 #[derive(Debug)]
 pub struct GroupedRectsToPlace<RectToPlaceId, GroupId = ()>
 where
-    RectToPlaceId: Debug + Hash + Eq,
-    GroupId: Debug + Hash + Eq,
+    RectToPlaceId: Debug + Hash + Eq + Ord + PartialOrd,
+    GroupId: Debug + Hash + Eq + Ord + PartialOrd,
 {
+    // FIXME: inbound_id_to_group_id appears to be unused. If so, remove it. Also remove the
+    //  Hash and Eq constraints on RectToPlaceId if we remove this map
     pub(crate) inbound_id_to_group_ids: HashMap<RectToPlaceId, Vec<Group<GroupId, RectToPlaceId>>>,
-    pub(crate) group_id_to_inbound_ids: HashMap<Group<GroupId, RectToPlaceId>, Vec<RectToPlaceId>>,
+    pub(crate) group_id_to_inbound_ids: BTreeMap<Group<GroupId, RectToPlaceId>, Vec<RectToPlaceId>>,
     pub(crate) rects: HashMap<RectToPlaceId, RectToInsert>,
 }
 
 /// A group of rectangles that need to be placed together
-#[derive(Debug, Hash, Eq, PartialEq)]
+#[derive(Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub enum Group<GroupId, RectToPlaceId>
 where
-    GroupId: Debug + Hash + Eq + PartialEq,
-    RectToPlaceId: Debug,
+    GroupId: Debug + Hash + Eq + PartialEq + Ord + PartialOrd,
+    RectToPlaceId: Debug + Ord + PartialOrd,
 {
     /// An automatically generated (auto incrementing) group identifier for rectangles that were
     /// passed in without any associated group ids.
@@ -43,8 +45,8 @@ where
 
 impl<RectToPlaceId, GroupId> GroupedRectsToPlace<RectToPlaceId, GroupId>
 where
-    RectToPlaceId: Debug + Hash + Clone + Eq,
-    GroupId: Debug + Hash + Clone + Eq,
+    RectToPlaceId: Debug + Hash + Clone + Eq + Ord + PartialOrd,
+    GroupId: Debug + Hash + Clone + Eq + Ord + PartialOrd,
 {
     /// Create a new `LayeredRectGroups`
     pub fn new() -> Self {
@@ -141,8 +143,8 @@ mod tests {
         );
 
         assert_eq!(
-            lrg.group_id_to_inbound_ids[&Group::Grouped(0)],
-            vec![RectToPlaceId::One, RectToPlaceId::Two]
+            lrg.group_id_to_inbound_ids.get(&Group::Grouped(0)).unwrap(),
+            &vec![RectToPlaceId::One, RectToPlaceId::Two]
         );
     }
 
@@ -184,7 +186,7 @@ mod tests {
         assert_eq!(lrg.rects[&RectToPlaceId::One], RectToInsert::new(10, 10, 1));
     }
 
-    #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+    #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
     enum RectToPlaceId {
         One,
         Two,

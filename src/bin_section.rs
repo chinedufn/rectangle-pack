@@ -16,7 +16,7 @@ use std::fmt::{Display, Formatter};
 ///
 /// Ordering::Greater means the first set of containers is better.
 /// Ordering::Less means the second set of containers is better.
-pub type MoreSuitableContainersFn =
+pub type ComparePotentialContainersFn =
     dyn Fn([WidthHeightDepth; 3], [WidthHeightDepth; 3], &BoxSizeHeuristicFn) -> Ordering;
 
 /// Select the container that has the smallest box.
@@ -27,8 +27,8 @@ pub fn contains_smallest_box(
     mut container2: [WidthHeightDepth; 3],
     heuristic: &BoxSizeHeuristicFn,
 ) -> Ordering {
-    container1.sort_unstable_by(|a, b| heuristic(*a).cmp(&heuristic(*b)));
-    container2.sort_unstable_by(|a, b| heuristic(*a).cmp(&heuristic(*b)));
+    container1.sort_by(|a, b| heuristic(*a).cmp(&heuristic(*b)));
+    container2.sort_by(|a, b| heuristic(*a).cmp(&heuristic(*b)));
 
     match heuristic(container2[0]).cmp(&heuristic(container1[0])) {
         Ordering::Equal => heuristic(container2[1]).cmp(&heuristic(container1[1])),
@@ -78,7 +78,7 @@ impl BinSection {
         BinSection { x, y, z, whd }
     }
 
-    // TODO: Delete - just the old API
+    // TODO: Delete - just the old API before we had the WidthHeightDepth struct
     fn new_spread(x: u32, y: u32, z: u32, width: u32, height: u32, depth: u32) -> Self {
         BinSection {
             x,
@@ -149,7 +149,7 @@ impl BinSection {
     pub fn try_place(
         &self,
         incoming: &RectToInsert,
-        container_comparison_fn: &MoreSuitableContainersFn,
+        container_comparison_fn: &ComparePotentialContainersFn,
         heuristic_fn: &BoxSizeHeuristicFn,
     ) -> Result<(PackedLocation, [BinSection; 3]), BinSectionError> {
         self.incoming_can_fit(incoming)?;
@@ -163,7 +163,7 @@ impl BinSection {
             self.width_largest_height_second_largest_depth_smallest(incoming),
         ];
 
-        all_combinations.sort_unstable_by(|a, b| {
+        all_combinations.sort_by(|a, b| {
             container_comparison_fn(
                 [a[0].whd, a[1].whd, a[2].whd],
                 [b[0].whd, b[1].whd, b[2].whd],

@@ -28,10 +28,12 @@ use rectangle_pack::{
     volume_heuristic,
     contains_smallest_box
 };
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
-// A rectangle ID just needs to meet these trait bounds (ideally also Copy)
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+// A rectangle ID just needs to meet these trait bounds (ideally also Copy).
+// So you could use a String, PathBuf, or any other type that meets these
+// trat bounds. You do not have to use a custom enum.
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd)]
 enum MyCustomRectId {
     RectOne,
     RectTwo,
@@ -39,7 +41,9 @@ enum MyCustomRectId {
 }
 
 // A target bin ID just needs to meet these trait bounds (ideally also Copy)
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+// So you could use a u32, &str, or any other type that meets these
+// trat bounds. You do not have to use a custom enum.
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd)]
 enum MyCustomBinId {
     DestinationBinOne,
     DestinationBinTwo,
@@ -51,7 +55,10 @@ enum MyCustomBinId {
 // into the same bin. If this isn't possible an error is returned.
 //
 // Groups are optional.
-#[derive(Debug, Hash, PartialEq, Eq, Clone)]
+//
+// You could use an i32, &'static str, or any other type that meets these
+// trat bounds. You do not have to use a custom enum.
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd)]
 enum MyCustomGroupId {
     GroupIdOne
 }
@@ -73,7 +80,7 @@ rects_to_place.push_rect(
     RectToInsert::new(30, 30, 255)
 );
 
-let mut target_bins = HashMap::new();
+let mut target_bins = BTreeMap::new();
 target_bins.insert(MyCustomBinId::DestinationBinOne, TargetBin::new(2048, 2048, 255));
 target_bins.insert(MyCustomBinId::DestinationBinTwo, TargetBin::new(4096, 4096, 1020));
 
@@ -134,17 +141,22 @@ The API shouldn't know about the specifics of any of these requirements - it sho
 
 ## Features
 
-- Minimalist, generic API that pushes as much as possible into user-land.
+- Place any number of 2d / 3d rectangles into any number of 2d / 3d target bins.
+  - Supports three dimensional rectangles through a width + height + depth based API.
 
-- Arbitrarily grouping rectangles to ensure that they are placed in the same bin(s).
+- Generic API that pushes as much as possible into user-land for maximum flexibility.
 
-- Supports three dimensional rectangles through a width + height + depth based API.
+- Group rectangles using generic group id's when you need to ensure that certain rectangles will always end up sharing a bin with each other.
 
 - Supports two dimensional rectangles (depth = 1).
 
 - User provided heuristics to grant full control over the packing algorithm.
 
 - Zero dependencies, making it easier to embed it inside of a more use case specific library without introducing bloat.
+
+- Deterministic packing.
+  - Packing of the same inputs using the same heuristics and the same sized target bins will always lead to the same layout.
+    - This is useful anywhere that reproducible builds are useful, such as when generating a texture atlas that is meant to be cached based on the hash of the contents.
 
 ## Future Work
 
@@ -162,7 +174,7 @@ This could be accomplished by:
 
 1. The API exposes three booleans for every incoming rectangles, `allow_global_x_axis_rotation`, `allow_global_y_axis_rotation`, `allow_global_z_axis_rotation`.
 
-2. Let's say all three are enabled. When attempting to place the rectangle/box we should attempt it in all 6 possible orientations and then select the best placement (based on the `MoreSuitableContainersFn` heuristic).
+2. Let's say all three are enabled. When attempting to place the rectangle/box we should attempt it in all 6 possible orientations and then select the best placement (based on the `ComparePotentialContainersFn` heuristic).
 
 3. Return information to the caller about which axis ended up being rotated.
 
