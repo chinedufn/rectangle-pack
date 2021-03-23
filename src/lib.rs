@@ -92,7 +92,7 @@ mod box_size_heuristics;
 /// // Information about where each `MyCustomRectId` was placed
 /// let rectangle_placements = pack_rects(
 ///     &rects_to_place,
-///     &mut target_bins,
+///     target_bins,
 ///     &volume_heuristic,
 ///     &contains_smallest_box
 /// ).unwrap();
@@ -113,13 +113,13 @@ pub fn pack_rects<
     GroupId: Debug + Hash + PartialEq + Eq + Clone + Ord + PartialOrd,
 >(
     rects_to_place: &GroupedRectsToPlace<RectToPlaceId, GroupId>,
-    target_bins: &mut BTreeMap<BinId, TargetBin>,
+    target_bins: BTreeMap<BinId, TargetBin>,
     box_size_heuristic: &BoxSizeHeuristicFn,
     more_suitable_containers_fn: &ComparePotentialContainersFn,
 ) -> Result<RectanglePackOk<RectToPlaceId, BinId>, RectanglePackError> {
     let mut packed_locations = HashMap::new();
 
-    let mut target_bins: Vec<(&BinId, &mut TargetBin)> = target_bins.iter_mut().collect();
+    let mut target_bins: Vec<(BinId, TargetBin)> = target_bins.into_iter().collect();
     sort_bins_smallest_to_largest(&mut target_bins, box_size_heuristic);
 
     let mut group_id_to_inbound_ids: Vec<(&Group<GroupId, RectToPlaceId>, &Vec<RectToPlaceId>)> =
@@ -277,7 +277,7 @@ impl Display for RectanglePackError {
 impl std::error::Error for RectanglePackError {}
 
 fn sort_bins_smallest_to_largest<BinId>(
-    bins: &mut Vec<(&BinId, &mut TargetBin)>,
+    bins: &mut Vec<(BinId, TargetBin)>,
     box_size_heuristic: &BoxSizeHeuristicFn,
 ) where
     BinId: Debug + Hash + PartialEq + Eq + Clone,
@@ -349,14 +349,7 @@ mod tests {
         let mut groups: GroupedRectsToPlace<_, ()> = GroupedRectsToPlace::new();
         groups.push_rect(RectToPlaceId::One, None, RectToInsert::new(3, 1, 1));
 
-        match pack_rects(
-            &groups,
-            &mut targets,
-            &volume_heuristic,
-            &contains_smallest_box,
-        )
-        .unwrap_err()
-        {
+        match pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap_err() {
             RectanglePackError::NotEnoughBinSpace => {}
         };
     }
@@ -385,14 +378,7 @@ mod tests {
             RectToInsert::new(100, 100, 1),
         );
 
-        match pack_rects(
-            &groups,
-            &mut targets,
-            &volume_heuristic,
-            &contains_smallest_box,
-        )
-        .unwrap_err()
-        {
+        match pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap_err() {
             RectanglePackError::NotEnoughBinSpace => {}
         };
     }
@@ -407,13 +393,8 @@ mod tests {
         let mut targets = BTreeMap::new();
         targets.insert(BinId::Three, TargetBin::new(5, 5, 1));
 
-        let packed = pack_rects(
-            &groups,
-            &mut targets,
-            &volume_heuristic,
-            &contains_smallest_box,
-        )
-        .unwrap();
+        let packed =
+            pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap();
         let locations = packed.packed_locations;
 
         assert_eq!(locations.len(), 1);
@@ -447,13 +428,8 @@ mod tests {
         targets.insert(BinId::Three, TargetBin::new(5, 5, 1));
         targets.insert(BinId::Four, TargetBin::new(5, 5, 2));
 
-        let packed = pack_rects(
-            &groups,
-            &mut targets,
-            &volume_heuristic,
-            &contains_smallest_box,
-        )
-        .unwrap();
+        let packed =
+            pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap();
         let locations = packed.packed_locations;
 
         assert_eq!(locations[&RectToPlaceId::One].0, BinId::Three,);
@@ -487,13 +463,8 @@ mod tests {
         let mut targets = BTreeMap::new();
         targets.insert(BinId::Three, TargetBin::new(20, 20, 2));
 
-        let packed = pack_rects(
-            &groups,
-            &mut targets,
-            &volume_heuristic,
-            &contains_smallest_box,
-        )
-        .unwrap();
+        let packed =
+            pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap();
         let locations = packed.packed_locations;
 
         assert_eq!(locations.len(), 2);
@@ -550,13 +521,8 @@ mod tests {
         targets.insert(BinId::Three, TargetBin::new(20, 20, 1));
         targets.insert(BinId::Four, TargetBin::new(50, 50, 1));
 
-        let packed = pack_rects(
-            &groups,
-            &mut targets,
-            &volume_heuristic,
-            &contains_smallest_box,
-        )
-        .unwrap();
+        let packed =
+            pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap();
         let locations = packed.packed_locations;
 
         assert_eq!(locations.len(), 2);
@@ -626,13 +592,8 @@ mod tests {
         groups.push_rect(RectToPlaceId::One, None, RectToInsert::new(50, 90, 1));
         groups.push_rect(RectToPlaceId::Two, None, RectToInsert::new(1, 1, 1));
 
-        let packed = pack_rects(
-            &groups,
-            &mut targets,
-            &volume_heuristic,
-            &contains_smallest_box,
-        )
-        .unwrap();
+        let packed =
+            pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap();
         let locations = packed.packed_locations;
 
         assert_eq!(locations.len(), 2);
@@ -709,13 +670,8 @@ mod tests {
         groups.push_rect(RectToPlaceId::Two, None, RectToInsert::new(40, 10, 1));
         groups.push_rect(RectToPlaceId::Three, None, RectToInsert::new(60, 3, 1));
 
-        let packed = pack_rects(
-            &groups,
-            &mut targets,
-            &volume_heuristic,
-            &contains_smallest_box,
-        )
-        .unwrap();
+        let packed =
+            pack_rects(&groups, targets, &volume_heuristic, &contains_smallest_box).unwrap();
         let locations = packed.packed_locations;
 
         assert_eq!(
@@ -797,7 +753,7 @@ mod tests {
 
             let packed = pack_rects(
                 &rects_to_place,
-                &mut target_bins.clone(),
+                target_bins.clone(),
                 &volume_heuristic,
                 &contains_smallest_box,
             )
