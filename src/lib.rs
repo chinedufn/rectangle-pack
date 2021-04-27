@@ -154,13 +154,13 @@ pub fn pack_rects<
             }
 
             'incoming: for rect_to_place_id in rects_to_place_ids.iter() {
-                if bin.remaining_sections.len() == 0 {
+                if bin.available_bin_sections.len() == 0 {
                     continue;
                 }
 
                 let _bin_clone = bin.clone();
 
-                let mut bin_sections = bin.remaining_sections.clone();
+                let mut bin_sections = bin.available_bin_sections.clone();
 
                 let last_section_idx = bin_sections.len() - 1;
                 let mut sections_tried = 0;
@@ -213,11 +213,11 @@ where
     GroupId: Debug + Hash + PartialEq + Eq + Clone + Ord + PartialOrd,
 {
     'incoming: for rect_to_place_id in group.iter() {
-        if bin.remaining_sections.len() == 0 {
+        if bin.available_bin_sections.len() == 0 {
             return false;
         }
 
-        let mut bin_sections = bin.remaining_sections.clone();
+        let mut bin_sections = bin.available_bin_sections.clone();
 
         let last_section_idx = bin_sections.len() - 1;
         let mut sections_tried = 0;

@@ -9,7 +9,14 @@ pub struct WidthHeightDepth {
 
 #[allow(missing_docs)]
 impl WidthHeightDepth {
+    /// # Panics
+    ///
+    /// Panics if width, height or depth is 0.
     pub fn new(width: u32, height: u32, depth: u32) -> Self {
+        assert_ne!(width, 0);
+        assert_ne!(height, 0);
+        assert_ne!(depth, 0);
+
         WidthHeightDepth {
             width,
             height,

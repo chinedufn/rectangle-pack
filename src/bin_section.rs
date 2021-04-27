@@ -3,6 +3,8 @@ use crate::{BoxSizeHeuristicFn, PackedLocation, RectToInsert, WidthHeightDepth};
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 
+mod overlaps;
+
 /// Given two sets of containers, which of these is the more suitable for our packing.
 ///
 /// Useful when we're determining how to split up the remaining volume/area of a box/rectangle.
@@ -39,9 +41,9 @@ pub fn contains_smallest_box(
 /// A rectangular section within a target bin that takes up one or more layers
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Default, Ord, PartialOrd)]
 pub struct BinSection {
-    x: u32,
-    y: u32,
-    z: u32,
+    pub(crate) x: u32,
+    pub(crate) y: u32,
+    pub(crate) z: u32,
     pub(crate) whd: WidthHeightDepth,
 }
 
