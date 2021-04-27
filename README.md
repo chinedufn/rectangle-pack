@@ -87,7 +87,7 @@ target_bins.insert(MyCustomBinId::DestinationBinTwo, TargetBin::new(4096, 4096, 
 // Information about where each `MyCustomRectId` was placed
 let rectangle_placements = pack_rects(
     &rects_to_place,
-    target_bins,
+    &mut target_bins,
     &volume_heuristic,
     &contains_smallest_box
 ).unwrap();
@@ -96,6 +96,22 @@ let rectangle_placements = pack_rects(
 [Full API Documentation](https://docs.rs/rectangle-pack)
 
 ## Background / Initial Motivation
+
+<details>
+<summary>
+Click to show the initial motivation for the library.
+
+In my application I've switched to dynamically placing textures into atlases at runtime
+instead of in how I previously used an asset compilation step, so some of the problems
+explained here are now moot.
+
+I still use rectangle-pack to power my runtime texture allocation, though,
+along with a handful of other strategies depending on the nature of the
+textures that need to be placed into the atlas.
+
+rectangle-pack knows nothing about textures, so you can use it for any form of bin
+packing, whether at runtime, during an offline step or any other time you like.
+</summary>
 
 I'm working on a game with some of the following texture atlas requirements (as of March 2020):
 
@@ -138,6 +154,9 @@ The API shouldn't know about the specifics of any of these requirements - it sho
 
 > Given these rectangles that need to be placed, the maximum sizes of the target bins to place them in and some criteria about how to place and how not to place them,
 > where can I put all of these rectangles?
+
+</details>
+<p></p>
 
 ## Features
 
@@ -207,6 +226,15 @@ support our goal of flexibly supporting all use cases.
   Instead, we base it on the user provided `more_suitable_containers` heuristic function.
 
 - There is a third dimension.
+
+## In The Wild
+
+Here are some known production users of `rectangle-pack`.
+
+- [Akigi](https://akigi.com) uses `rectangle-pack` to power parts of its runtime texture allocation strategy.
+
+- [Bevy](https://github.com/bevyengine/bevy/blob/9ae56e860468aa3158a702cbcf64e511b84a4b1c/crates/bevy_sprite/Cargo.toml#L29) uses `rectangle-pack`
+  to create texture atlases.
 
 ## Contributing
 

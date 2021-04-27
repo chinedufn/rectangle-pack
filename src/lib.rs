@@ -34,6 +34,8 @@ mod box_size_heuristics;
 /// ## Example
 ///
 /// ```
+/// //! A basic example of packing rectangles into target bins
+///
 /// use rectangle_pack::{
 ///     GroupedRectsToPlace,
 ///     RectToInsert,
@@ -42,9 +44,11 @@ mod box_size_heuristics;
 ///     volume_heuristic,
 ///     contains_smallest_box
 /// };
-/// use std::collections::{BTreeMap};
+/// use std::collections::BTreeMap;
 ///
-/// // A rectangle ID just needs to meet these trait bounds (ideally also Copy)
+/// // A rectangle ID just needs to meet these trait bounds (ideally also Copy).
+/// // So you could use a String, PathBuf, or any other type that meets these
+/// // trat bounds. You do not have to use a custom enum.
 /// #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd)]
 /// enum MyCustomRectId {
 ///     RectOne,
@@ -53,6 +57,8 @@ mod box_size_heuristics;
 /// }
 ///
 /// // A target bin ID just needs to meet these trait bounds (ideally also Copy)
+/// // So you could use a u32, &str, or any other type that meets these
+/// // trat bounds. You do not have to use a custom enum.
 /// #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd)]
 /// enum MyCustomBinId {
 ///     DestinationBinOne,
@@ -61,8 +67,13 @@ mod box_size_heuristics;
 ///
 /// // A placement group just needs to meet these trait bounds (ideally also Copy).
 /// //
-/// // Groups are optional - they allow you to ensure that a set of rectangles will be placed
+/// // Groups allow you to ensure that a set of rectangles will be placed
 /// // into the same bin. If this isn't possible an error is returned.
+/// //
+/// // Groups are optional.
+/// //
+/// // You could use an i32, &'static str, or any other type that meets these
+/// // trat bounds. You do not have to use a custom enum.
 /// #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd)]
 /// enum MyCustomGroupId {
 ///     GroupIdOne
