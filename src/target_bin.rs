@@ -1,6 +1,7 @@
 use crate::bin_section::BinSection;
 use crate::width_height_depth::WidthHeightDepth;
 
+mod coalesce;
 mod push_available_bin_section;
 
 /// A bin that we'd like to play our incoming rectangles into
@@ -32,6 +33,11 @@ impl TargetBin {
             max_depth,
             available_bin_sections,
         }
+    }
+
+    /// The free [`BinSection`]s within the [`TargetBin`] that rectangles can still be placed into.
+    pub fn available_bin_sections(&self) -> &Vec<BinSection> {
+        &self.available_bin_sections
     }
 
     /// Remove the section that was just split by a placed rectangle.

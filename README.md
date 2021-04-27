@@ -177,6 +177,8 @@ The API shouldn't know about the specifics of any of these requirements - it sho
   - Packing of the same inputs using the same heuristics and the same sized target bins will always lead to the same layout.
     - This is useful anywhere that reproducible builds are useful, such as when generating a texture atlas that is meant to be cached based on the hash of the contents.
 
+- Ability to remove placed rectangles and coalesce neighboring free space.
+
 ## Future Work
 
 The first version of `rectangle-pack` was designed to meet my own needs.
