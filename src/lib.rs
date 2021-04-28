@@ -8,7 +8,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
 pub use crate::bin_section::contains_smallest_box;
-use crate::bin_section::BinSection;
+pub use crate::bin_section::BinSection;
 pub use crate::bin_section::ComparePotentialContainersFn;
 use crate::grouped_rects_to_place::Group;
 pub use crate::grouped_rects_to_place::GroupedRectsToPlace;
