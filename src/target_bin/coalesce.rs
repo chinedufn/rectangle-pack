@@ -78,7 +78,7 @@ impl TargetBin {
     //  Tests cases should have a rectangle and then a neighbor (above, below, left, right) and
     //  verify that they get combined, but only if the comparison indices are correct and only if
     //  the neighbor has the same width (uf above/below) or height (if left/right).
-    pub fn coalesce_available_sections(bin_section_index: usize, compare_to_indices: Range<usize>) {
+    pub fn coalesce_available_sections(_bin_section_index: usize, _compare_to_indices: Range<usize>) {
         unimplemented!()
     }
 }
