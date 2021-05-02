@@ -1,5 +1,6 @@
 use crate::bin_section::BinSection;
 use crate::width_height_depth::WidthHeightDepth;
+use alloc::vec::Vec;
 
 mod coalesce;
 mod push_available_bin_section;

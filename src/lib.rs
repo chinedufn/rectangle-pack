@@ -1,11 +1,20 @@
 //! `rectangle-pack` is a library focused on laying out any number of smaller rectangles
 //! (both 2d rectangles and 3d rectangular prisms) inside any number of larger rectangles.
-
+#![cfg_attr(not(std), no_std)]
 #![deny(missing_docs)]
 
-use std::collections::{BTreeMap, HashMap};
-use std::fmt::{Debug, Display, Formatter};
-use std::hash::Hash;
+#[macro_use]
+extern crate alloc;
+
+#[cfg(not(std))]
+use alloc::collections::BTreeMap as KeyValMap;
+use alloc::{collections::BTreeMap, vec::Vec};
+use core::{
+    fmt::{Debug, Display, Error as ErrorFmt, Formatter},
+    hash::Hash,
+};
+#[cfg(std)]
+use std::collections::HashMap as KeyValMap;
 
 pub use crate::bin_section::contains_smallest_box;
 pub use crate::bin_section::BinSection;
@@ -128,7 +137,7 @@ pub fn pack_rects<
     box_size_heuristic: &BoxSizeHeuristicFn,
     more_suitable_containers_fn: &ComparePotentialContainersFn,
 ) -> Result<RectanglePackOk<RectToPlaceId, BinId>, RectanglePackError> {
-    let mut packed_locations = HashMap::new();
+    let mut packed_locations = KeyValMap::new();
 
     let mut target_bins: Vec<(&BinId, &mut TargetBin)> = target_bins.iter_mut().collect();
     sort_bins_smallest_to_largest(&mut target_bins, box_size_heuristic);
@@ -254,7 +263,7 @@ where
 /// Information about successfully packed rectangles.
 #[derive(Debug, PartialEq)]
 pub struct RectanglePackOk<RectToPlaceId: PartialEq + Eq + Hash, BinId: PartialEq + Eq + Hash> {
-    packed_locations: HashMap<RectToPlaceId, (BinId, PackedLocation)>,
+    packed_locations: KeyValMap<RectToPlaceId, (BinId, PackedLocation)>,
     // TODO: Other information such as information about how the bins were packed
     // (perhaps percentage filled)
 }
@@ -263,7 +272,7 @@ impl<RectToPlaceId: PartialEq + Eq + Hash, BinId: PartialEq + Eq + Hash>
     RectanglePackOk<RectToPlaceId, BinId>
 {
     /// Indicates where every incoming rectangle was placed
-    pub fn packed_locations(&self) -> &HashMap<RectToPlaceId, (BinId, PackedLocation)> {
+    pub fn packed_locations(&self) -> &KeyValMap<RectToPlaceId, (BinId, PackedLocation)> {
         &self.packed_locations
     }
 }
@@ -276,7 +285,7 @@ pub enum RectanglePackError {
 }
 
 impl Display for RectanglePackError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), ErrorFmt> {
         match self {
             RectanglePackError::NotEnoughBinSpace => {
                 f.write_str("Not enough space to place all of the rectangles.")
@@ -284,7 +293,7 @@ impl Display for RectanglePackError {
         }
     }
 }
-
+#[cfg(std)]
 impl std::error::Error for RectanglePackError {}
 
 fn sort_bins_smallest_to_largest<BinId>(
@@ -349,7 +358,6 @@ mod tests {
 
     use super::*;
     use crate::packed_location::RotatedBy;
-    use std::path::PathBuf;
 
     /// If the provided rectangles can't fit into the provided bins.
     #[test]
@@ -787,7 +795,8 @@ mod tests {
         let mut previous_packed = None;
 
         for _ in 0..5 {
-            let mut rects_to_place: GroupedRectsToPlace<PathBuf, &str> = GroupedRectsToPlace::new();
+            let mut rects_to_place: GroupedRectsToPlace<&'static str, &str> =
+                GroupedRectsToPlace::new();
 
             let mut target_bins = BTreeMap::new();
             for bin_id in 0..5 {
@@ -803,7 +812,7 @@ mod tests {
             ];
 
             for rect_id in rectangles.iter() {
-                rects_to_place.push_rect(PathBuf::from(rect_id), None, RectToInsert::new(4, 4, 1));
+                rects_to_place.push_rect(rect_id, None, RectToInsert::new(4, 4, 1));
             }
 
             let packed = pack_rects(

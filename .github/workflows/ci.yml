@@ -16,3 +16,6 @@ jobs:
 
     - name: Run tests
       run: RUSTFLAGS="-D warnings" cargo test --workspace
+
+    - name: Run tests with no defaults
+      run: RUSTFLAGS="-D warnings" cargo test --workspace --no-default-features

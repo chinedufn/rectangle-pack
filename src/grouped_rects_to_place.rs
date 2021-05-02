@@ -1,8 +1,16 @@
 use crate::RectToInsert;
-use std::collections::btree_map::Entry;
-use std::collections::{BTreeMap, HashMap};
-use std::fmt::Debug;
-use std::hash::Hash;
+
+#[cfg(std)]
+use crate::Vec;
+#[cfg(not(std))]
+use alloc::collections::BTreeMap as KeyValMap;
+use alloc::{
+    collections::{btree_map::Entry, BTreeMap},
+    vec::Vec,
+};
+use core::{fmt::Debug, hash::Hash};
+#[cfg(std)]
+use std::collections::HashMap as KeyValMap;
 
 /// Groups of rectangles that need to be placed into bins.
 ///
@@ -19,9 +27,10 @@ where
 {
     // FIXME: inbound_id_to_group_id appears to be unused. If so, remove it. Also remove the
     //  Hash and Eq constraints on RectToPlaceId if we remove this map
-    pub(crate) inbound_id_to_group_ids: HashMap<RectToPlaceId, Vec<Group<GroupId, RectToPlaceId>>>,
+    pub(crate) inbound_id_to_group_ids:
+        KeyValMap<RectToPlaceId, Vec<Group<GroupId, RectToPlaceId>>>,
     pub(crate) group_id_to_inbound_ids: BTreeMap<Group<GroupId, RectToPlaceId>, Vec<RectToPlaceId>>,
-    pub(crate) rects: HashMap<RectToPlaceId, RectToInsert>,
+    pub(crate) rects: KeyValMap<RectToPlaceId, RectToInsert>,
 }
 
 /// A group of rectangles that need to be placed together
