@@ -14,7 +14,7 @@ in any rectangle packing context**.
 
 ```
 # In your Cargo.toml
-rectangle-pack = "0.1"
+rectangle-pack = "0.4"
 ```
 
 ```rust

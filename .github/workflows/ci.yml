@@ -1,6 +1,6 @@
 name: test
 
-on: [push]
+on: [push, pull_request]
 
 # TODO: Introduce caching https://github.com/actions/cache/blob/master/examples.md#rust---cargo
 jobs:
