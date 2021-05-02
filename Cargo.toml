@@ -7,3 +7,7 @@ keywords = ["texture", "atlas", "bin", "box", "packer"]
 description = "A general purpose, deterministic bin packer designed to conform to any two or three dimensional use case."
 license = "MIT/Apache-2.0"
 repository = "https://github.com/chinedufn/rectangle-pack"
+
+[features]
+default = ["std"]
+std = []
