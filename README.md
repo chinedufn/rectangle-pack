@@ -97,13 +97,9 @@ let rectangle_placements = pack_rects(
 
 ## Background / Initial Motivation
 
-<details>
-<summary>
-Click to show the initial motivation for the library.
-
 In my application I've switched to dynamically placing textures into atlases at runtime
 instead of in how I previously used an asset compilation step, so some of the problems
-explained here are now moot.
+explained in the initial motivation details below are now moot.
 
 I still use rectangle-pack to power my runtime texture allocation, though,
 along with a handful of other strategies depending on the nature of the
@@ -111,6 +107,10 @@ textures that need to be placed into the atlas.
 
 rectangle-pack knows nothing about textures, so you can use it for any form of bin
 packing, whether at runtime, during an offline step or any other time you like.
+
+<details>
+<summary>
+Click to show the initial motivation for the library.
 </summary>
 
 I'm working on a game with some of the following texture atlas requirements (as of March 2020):
