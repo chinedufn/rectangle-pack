@@ -8,13 +8,15 @@ extern crate alloc;
 
 #[cfg(not(std))]
 use alloc::collections::BTreeMap as KeyValMap;
-use alloc::{collections::BTreeMap, vec::Vec};
-use core::{
-    fmt::{Debug, Display, Error as ErrorFmt, Formatter},
-    hash::Hash,
-};
 #[cfg(std)]
 use std::collections::HashMap as KeyValMap;
+
+use alloc::{collections::BTreeMap, vec::Vec};
+
+use core::{
+    fmt::{Debug, Display, Error as FmtError, Formatter},
+    hash::Hash,
+};
 
 pub use crate::bin_section::contains_smallest_box;
 pub use crate::bin_section::BinSection;
@@ -284,8 +286,11 @@ pub enum RectanglePackError {
     NotEnoughBinSpace,
 }
 
+#[cfg(std)]
+impl std::error::Error for RectanglePackError {}
+
 impl Display for RectanglePackError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), ErrorFmt> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), FmtError> {
         match self {
             RectanglePackError::NotEnoughBinSpace => {
                 f.write_str("Not enough space to place all of the rectangles.")
@@ -293,8 +298,6 @@ impl Display for RectanglePackError {
         }
     }
 }
-#[cfg(std)]
-impl std::error::Error for RectanglePackError {}
 
 fn sort_bins_smallest_to_largest<BinId>(
     bins: &mut Vec<(&BinId, &mut TargetBin)>,

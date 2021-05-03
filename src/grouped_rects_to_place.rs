@@ -1,16 +1,15 @@
 use crate::RectToInsert;
 
-#[cfg(std)]
-use crate::Vec;
 #[cfg(not(std))]
 use alloc::collections::BTreeMap as KeyValMap;
+#[cfg(std)]
+use std::collections::HashMap as KeyValMap;
+
 use alloc::{
     collections::{btree_map::Entry, BTreeMap},
     vec::Vec,
 };
 use core::{fmt::Debug, hash::Hash};
-#[cfg(std)]
-use std::collections::HashMap as KeyValMap;
 
 /// Groups of rectangles that need to be placed into bins.
 ///

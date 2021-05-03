@@ -158,6 +158,18 @@ The API shouldn't know about the specifics of any of these requirements - it sho
 </details>
 <p></p>
 
+## no_std
+
+rectangle-pack supports `no_std` by disabling the `std` feature.
+
+```toml
+rectangle-pack = {version = "0.4", default-features = false}
+```
+
+Disabling the `std` feature does the following.
+
+- `BTreeMap`s are used internally in places where `HashMap`s would have been used.
+
 ## Features
 
 - Place any number of 2d / 3d rectangles into any number of 2d / 3d target bins.

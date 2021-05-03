@@ -3,7 +3,7 @@ use crate::{BoxSizeHeuristicFn, PackedLocation, RectToInsert, WidthHeightDepth};
 
 use core::{
     cmp::Ordering,
-    fmt::{Debug, Display, Error as ErrorFmt, Formatter},
+    fmt::{Debug, Display, Error as FmtError, Formatter},
 };
 
 mod overlaps;
@@ -60,7 +60,7 @@ pub enum BinSectionError {
 }
 
 impl Display for BinSectionError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), ErrorFmt> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), FmtError> {
         let err = match self {
             BinSectionError::PlacementWiderThanBinSection => {
                 "Can not place a rectangle inside of a bin that is wider than that rectangle."

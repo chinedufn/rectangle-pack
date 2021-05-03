@@ -8,7 +8,7 @@
 
 use crate::bin_section::BinSection;
 use crate::TargetBin;
-use core::fmt::{Display, Formatter, Result as ResultFmt};
+use core::fmt::{Display, Formatter, Result as FmtResult};
 
 impl TargetBin {
     /// Push a [`BinSection`] to the list of remaining [`BinSection`]'s that rectangles can be
@@ -77,7 +77,7 @@ pub enum PushBinSectionError {
 }
 
 impl Display for PushBinSectionError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> ResultFmt {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             PushBinSectionError::OutOfBounds(oob) => {
                 f.debug_tuple("BinSection").field(oob).finish()
