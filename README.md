@@ -42,7 +42,7 @@ enum MyCustomRectId {
 
 // A target bin ID just needs to meet these trait bounds (ideally also Copy)
 // So you could use a u32, &str, or any other type that meets these
-// trat bounds. You do not have to use a custom enum.
+// trait bounds. You do not have to use a custom enum.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd)]
 enum MyCustomBinId {
     DestinationBinOne,
